@@ -1,0 +1,14 @@
+{
+  "name": "aspirante-ghostcoder-backend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev --yes --force",
+    "build": "echo \"Funciones serverless: build manejado por Vercel\"",
+    "start": "echo \"Usa 'vercel dev' para entorno local\"",
+    "lint": "echo \"(opcional) a\u00f1ade eslint/prettier m\u00e1s adelante\""
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

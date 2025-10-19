@@ -1,0 +1,17 @@
+{
+  "name": "aspirante-ghostcoder",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "install:all": "npm install -w frontend -w backend",
+    "dev": "npm run dev -w frontend",
+    "dev:all": "npm run dev -w frontend & npm run dev -w backend",
+    "build": "npm run build -w frontend",
+    "lint": "npm -w frontend run lint && npm -w backend run lint",
+    "deploy:vercel": "vercel --prod"
+  }
+}

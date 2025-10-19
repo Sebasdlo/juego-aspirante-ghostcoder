@@ -1,0 +1,14 @@
+{
+  "name": "aspirante-ghostcoder-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "lint": "echo \"(opcional) a\u00f1ade eslint/prettier m\u00e1s adelante\""
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
