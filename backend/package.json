@@ -4,11 +4,18 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vercel dev --yes --force",
+    "dev:local": "vercel dev -l 3000",
     "build": "echo \"Funciones serverless: build manejado por Vercel\"",
     "start": "echo \"Usa 'vercel dev' para entorno local\"",
-    "lint": "echo \"(opcional) a\u00f1ade eslint/prettier m\u00e1s adelante\""
+    "lint": "echo \"(opcional) añade eslint/prettier más adelante\""
   },
-  "dependencies": {},
-  "devDependencies": {}
+  "devDependencies": {
+    "@types/node": "^24.9.1",
+    "@vercel/node": "^5.5.0",
+    "typescript": "^5.9.3",
+    "vercel": "^48.6.0"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  }
 }

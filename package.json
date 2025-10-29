@@ -8,10 +8,20 @@
   ],
   "scripts": {
     "install:all": "npm install -w frontend -w backend",
+
     "dev": "npm run dev -w frontend",
-    "dev:all": "npm run dev -w frontend & npm run dev -w backend",
+    "dev:frontend": "npm run dev -w frontend",
+
+    "dev:backend": "cd backend && vercel dev --listen 3000",
+
+    "dev:all:nix": "npm run dev:frontend & npm run dev:backend",
+    "dev:all:win": "powershell -Command \"Start-Process -NoNewWindow npm -ArgumentList 'run dev:frontend'; Start-Process -NoNewWindow npm -ArgumentList 'run dev:backend'\"",
+
     "build": "npm run build -w frontend",
+    "build:all": "npm run build -w frontend && echo \"(Opcional) Agrega build del backend si lo necesitas\"",
+
     "lint": "npm -w frontend run lint && npm -w backend run lint",
+
     "deploy:vercel": "vercel --prod"
   }
 }

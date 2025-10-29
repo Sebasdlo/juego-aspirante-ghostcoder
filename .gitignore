@@ -29,3 +29,5 @@ coverage/
 # OS
 *.bak
 ~$*
+
+.vercel

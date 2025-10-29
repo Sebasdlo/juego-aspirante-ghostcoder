@@ -1,0 +1,64 @@
+:root {
+  --bg: #0b0f14;
+  --card: #121821;
+  --text: #e7ecf3;
+  --muted: #90a4b8;
+  --primary: #5cc8ff;
+  --accent: #9b7bff;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  color: var(--text);
+  background: radial-gradient(1200px 800px at 10% 10%, #0f1520 0%, var(--bg) 60%, #06090e 100%);
+}
+
+a { color: var(--primary); text-decoration: none; }
+button {
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  color: #0b0f14;
+  border: 0; border-radius: 10px; padding: 10px 16px; font-weight: 700; cursor: pointer;
+}
+.card {
+  background: var(--card); border: 1px solid #1d2633; border-radius: 16px; padding: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.3);
+}
+.grid { display: grid; gap: 16px; }
+/* Escala un poco los botones para pantallas grandes */
+@media (min-width: 1200px) {
+  button {
+    padding: 10px 18px;
+    font-size: 15px;
+  }
+  .card {
+    border-radius: 18px;
+  }
+}
+/* Botón de salto al contenido: visible al enfocar con teclado */
+.visually-hidden-focusable {
+  position: absolute;
+  left: -9999px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+.visually-hidden-focusable:focus,
+.visually-hidden-focusable:active {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 8px;
+  padding: 8px 12px;
+  background: rgba(255,255,255,.1);
+  border: 1px solid rgba(255,255,255,.25);
+  border-radius: 6px;
+}
+
+/* Focus visible general para accesibilidad */
+:focus-visible {
+  outline: 2px solid rgba(121,214,255,.85);
+  outline-offset: 2px;
+}
