@@ -1,188 +1,328 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { useStore } from '@state/store'
+// pages/Boss.tsx
+import React, { useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+
 import { assets } from '@scenes/assets/assets.manifest'
-import { Api, type ItemDTO, type AnswerResp } from '@api/services/Index'
 import OptionButton from '@ui/components/OptionButton'
-import { TOTAL_ITEMS, NEEDED } from '@domain/constants'
+import { useGame } from '@state/store'
 
-export default function Boss() {
-  React.useEffect(() => { document.title = 'Boss | GhostCoder' }, [])
+import {
+  getBossItem,
+  answerBossItem,
+  getSetSummary,
+  getPlayerState,
+  resetBossQuestion,
+  resetBossRun
+} from '@api/endpoints'
 
-  const { levelKey = 'junior' } = useParams()
+type RouteParams = {
+  levelKey?: string
+}
+
+type OptionState = 'idle' | 'selected' | 'correct' | 'incorrect'
+
+const panelStyle: React.CSSProperties = {
+  background: 'rgba(0,0,0,.55)',
+  border: '1px solid rgba(255,255,255,.22)',
+  padding: 16,
+  borderRadius: 12,
+  color: '#fff'
+}
+
+const MAX_FAILS = 3
+
+const Boss: React.FC = () => {
   const nav = useNavigate()
-  const store = useStore()
-  const { progress } = store
+  const { levelKey: routeLevelKey } = useParams<RouteParams>()
+  const levelKey = routeLevelKey || 'junior'
 
-  const [item, setItem] = useState<ItemDTO | null>(null)
+  // 👇 usamos setId y bootstrap desde el store (SOLO UNA VEZ)
+  const { setId, bootstrap } = useGame()
+
+  const [question, setQuestion] = useState('')
+  const [options, setOptions] = useState<string[]>([])
+  const [currentIndex, setCurrentIndex] = useState<number | null>(null)
+  const [totalBoss, setTotalBoss] = useState<number | null>(null)
+
   const [loading, setLoading] = useState(false)
+  const [isLoadingNext, setIsLoadingNext] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Selección y feedback
-  const [selected, setSelected] = useState<number | null>(null)      // single
-  const [multiSel, setMultiSel] = useState<Set<number>>(new Set())   // multiple
-  const [explanation, setExplanation] = useState<string | null>(null)
+  const [answered, setAnswered] = useState(false)
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
   const [wasCorrect, setWasCorrect] = useState<boolean | null>(null)
-  const answered = wasCorrect !== null
+  const [explanation, setExplanation] = useState<string | null>(null)
+  const [finished, setFinished] = useState(false)
 
-  const eligible = (progress?.score ?? 0) >= NEEDED
+  const [multiSel, setMultiSel] = useState<Set<number>>(new Set())
+  const isMultiple = false
 
-  const panelStyle: React.CSSProperties = {
-    background: 'rgba(0, 0, 0, 0.25)',
-    border: '1px solid rgba(255,255,255,.12)',
-    borderRadius: 12,
-    padding: '12px 14px',
-    boxShadow: '0 8px 24px rgba(0,0,0,.25)',
-    backdropFilter: 'blur(1px)',
-    color: '#fff'
-  }
+  const [bossNextIndex, setBossNextIndex] = useState<number | null>(null)
 
-  useEffect(() => {
-    // Cargar item del Boss sólo si es elegible
-    if (!eligible || !progress?.setId) {
-      setItem(null)
-      setLoading(false)
-      setError(null)
-      setSelected(null)
-      setMultiSel(new Set())
-      setExplanation(null)
-      setWasCorrect(null)
-      return
+  const [showCongrats, setShowCongrats] = useState(false)
+
+  const [failCount, setFailCount] = useState(0)
+  const [showFailOverlay, setShowFailOverlay] = useState(false)
+  const [lastWrongIndex, setLastWrongIndex] = useState<number | null>(null)
+
+  const displayOptions = isLoadingNext
+    ? [
+        'Cargando respuesta A…',
+        'Cargando respuesta B…',
+        'Cargando respuesta C…',
+        'Cargando respuesta D…'
+      ]
+    : options
+
+  const hasOptions = options.length > 0
+  const narrativeText = question || 'Cargando reto del jefe…'
+
+  // 👉 Cargar reto del Boss para un índice dado
+  const loadBossQuestion = async (index: number, fromButton = false) => {
+    if (!setId) return
+    if (finished && !fromButton) return
+
+    if (fromButton) {
+      setIsLoadingNext(true)
     }
 
     setLoading(true)
     setError(null)
-    setSelected(null)
-    setMultiSel(new Set())
-    setExplanation(null)
+    setAnswered(false)
     setWasCorrect(null)
-
-    const bossIndex = TOTAL_ITEMS
-    Api.getItem(progress.setId, bossIndex)
-      .then((dto) => setItem(dto ?? null))
-      .catch((e: any) => setError(e?.message || 'No se pudo cargar el reto del boss.'))
-      .finally(() => setLoading(false))
-  }, [eligible, progress?.setId])
-
-  // Opciones (con fallback mientras no llega el item)
-  const optionTexts = useMemo<string[]>(() => {
-    if (!item) return []
-    const arr = (item.options && item.options.length ? item.options : item.answers) ?? []
-    return arr.slice(0, 4)
-  }, [item])
-
-  const hasOptions = optionTexts.length > 0
-  const renderOptions = hasOptions ? optionTexts : ['—', '—', '—', '—']
-
-  // Detección multi-select
-  const isMultiple = !!(
-    (item as any)?.allowMultiple === true ||
-    Array.isArray((item as any)?.correctIndices) ||
-    Array.isArray((item as any)?.correctKeys) ||
-    (item as any)?.type === 'multi' ||
-    (item as any)?.multiple === true
-  )
-
-  const correctIndex = !isMultiple ? (item as any)?.correctIndex ?? null : null
-
-  const getState = (idx: number): 'idle'|'selected'|'correct'|'incorrect' => {
-    if (!answered) {
-      return isMultiple
-        ? (multiSel.has(idx) ? 'selected' : 'idle')
-        : (selected === idx ? 'selected' : 'idle')
-    }
-    if (!isMultiple && correctIndex != null) {
-      if (idx === correctIndex) return 'correct'
-      if (idx === selected)     return 'incorrect'
-      return 'idle'
-    }
-    // múltiple o sin índice: colorear seleccionados según wasCorrect global
-    return isMultiple
-      ? (multiSel.has(idx)
-          ? (wasCorrect === true ? 'correct' : wasCorrect === false ? 'incorrect' : 'selected')
-          : 'idle')
-      : (selected === idx
-          ? (wasCorrect === true ? 'correct' : wasCorrect === false ? 'incorrect' : 'selected')
-          : 'idle')
-  }
-
-  const applyAnswerToStore = (r: AnswerResp | null | undefined, correct: boolean) => {
-    const anyStore = store as any
-    const prevScore = progress?.score ?? 0
-    const prevNext  = progress?.nextIndex ?? 1
-    const nextIndex = r?.nextIndex ?? (prevNext + 1)
-    const score     = r?.score ?? (prevScore + (correct ? 1 : 0))
-
-    if (typeof anyStore.applyAnswerResult === 'function') {
-      anyStore.applyAnswerResult({ score, nextIndex })
-    } else if (typeof anyStore.setProgress === 'function') {
-      anyStore.setProgress({ ...progress, score, nextIndex })
-    } else {
-      if (typeof anyStore.addScore === 'function') anyStore.addScore(correct ? 1 : 0)
-      if (typeof anyStore.setNextIndex === 'function') anyStore.setNextIndex(nextIndex)
-    }
-  }
-
-  // Responder (single/multi)
-  const answerSingle = async (i: number) => {
-    if (!eligible || answered) return
-    if (!progress?.setId) return
-    setSelected(i)
-    try {
-      const bossIndex = TOTAL_ITEMS
-      const resp = await Api.answerItem(progress.setId, bossIndex, i)
-      const ok = !!resp?.correct
-      setWasCorrect(ok)
-      setExplanation(resp?.explanation ?? null)
-      applyAnswerToStore(resp, ok)
-    } catch {
-      setWasCorrect(null)
-    }
-  }
-
-  const answerMulti = async () => {
-    if (!eligible || answered) return
-    if (!progress?.setId) return
-    const picks = Array.from(multiSel.values()).sort((a,b)=>a-b)
-    if (picks.length === 0) return
+    setSelectedIndex(null)
+    setExplanation(null)
+    setMultiSel(new Set())
 
     try {
-      const anyApi = Api as any
-      const bossIndex = TOTAL_ITEMS
-      let resp: AnswerResp | null | undefined
-      if (typeof anyApi.answerItemMulti === 'function') {
-        resp = await anyApi.answerItemMulti(progress.setId, bossIndex, picks)
-      } else {
-        resp = await (anyApi.answerItem(progress.setId, bossIndex, picks) as Promise<AnswerResp>)
+      const data = await getBossItem(setId, index)
+      if (!data?.ok) {
+        throw new Error('No se pudo cargar el reto del jefe')
       }
-      const ok = !!resp?.correct
-      setWasCorrect(ok)
-      setExplanation(resp?.explanation ?? null)
-      applyAnswerToStore(resp, ok)
-    } catch {
-      setWasCorrect(null)
+
+      setQuestion(data.question || '')
+      setOptions(Array.isArray(data.options) ? data.options : [])
+      setCurrentIndex(data.index ?? index)
+      setTotalBoss(typeof data.total === 'number' ? data.total : null)
+      setFinished(false)
+      setBossNextIndex(null)
+    } catch (e: any) {
+      console.error('Error cargando el reto del jefe:', e)
+      setError(e?.message || 'No se pudo cargar el reto del jefe')
+    } finally {
+      setLoading(false)
+      setIsLoadingNext(false)
     }
   }
 
-  const onOptionClick = (i: number) => {
-    if (!hasOptions || answered) return
+  // 1️⃣ Si no hay setId (recarga/F5) → reconstruimos el estado con bootstrap()
+  useEffect(() => {
+    if (setId) return
+
+    const run = async () => {
+      try {
+        await bootstrap()
+      } catch (e) {
+        console.error('Error en bootstrap dentro de Boss:', e)
+      }
+    }
+
+    run()
+  }, [setId, bootstrap])
+
+  // 2️⃣ Cuando YA hay setId → pedimos player_state y cargamos la pregunta correcta
+  useEffect(() => {
+    if (!setId) return
+
+    const run = async () => {
+      try {
+        const resp = await getPlayerState()
+        if (!resp?.ok) {
+          await loadBossQuestion(16, true)
+          return
+        }
+
+        const anyResp = resp as any
+        const openSet = anyResp.openSet ?? null
+        const serverNext = openSet?.next_index ?? null
+
+        const startIndex =
+          typeof serverNext === 'number' && serverNext >= 16 && serverNext <= 20
+            ? serverNext
+            : 16
+
+        await loadBossQuestion(startIndex, true)
+      } catch (e) {
+        console.error('Error obteniendo player_state en Boss:', e)
+        await loadBossQuestion(16, true)
+      }
+    }
+
+    run()
+  }, [setId]) // 👈 solo depende de setId
+
+  const getState = (i: number): OptionState => {
+    if (!hasOptions) return 'idle'
+
+    if (!answered) {
+      if (isMultiple) {
+        return multiSel.has(i) ? 'selected' : 'idle'
+      }
+      return selectedIndex === i ? 'selected' : 'idle'
+    }
+
+    if (answered && selectedIndex === i) {
+      if (wasCorrect === true) return 'correct'
+      if (wasCorrect === false) return 'incorrect'
+    }
+    return 'idle'
+  }
+  const submitAnswer = async (answer: number) => {
+    if (!setId || currentIndex == null) return
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      const res = await answerBossItem(setId, currentIndex, answer)
+
+      setAnswered(true)
+      setWasCorrect(res.correct)
+
+      const anyRes = res as any
+      setExplanation(anyRes.explanation ?? anyRes.message ?? null)
+
+      // 🔹 Si la respuesta es INCORRECTA: NO avanzamos, sumamos fallo
+      if (!res.correct) {
+        setLastWrongIndex(currentIndex)
+
+        setBossNextIndex(null) // no avanzamos al siguiente reto
+
+        setFailCount(prev => {
+          const next = prev + 1
+          if (next >= MAX_FAILS) {
+            // 🔥 Alcanzó el máximo de fallos: evaluación fallida
+            setFinished(true)
+            setShowFailOverlay(true)
+          }
+          return next
+        })
+
+        return // ⛔ NO miramos res.finished ni res.nextIndex en este caso
+      }
+
+      // 🔹 Si la respuesta es CORRECTA:
+      if (res.finished) {
+        // ✅ Ya se respondió la última correcta (ej. la 20) y el set quedó en nextIndex 21
+        setFinished(true)
+        setBossNextIndex(null)
+        setShowCongrats(true) // 🔥 disparamos el mensaje de bienvenida a GhostCoder
+      } else if (typeof res.nextIndex === 'number') {
+        // ✅ Guardamos el next_index que maneja el SET en backend
+        setBossNextIndex(res.nextIndex)
+      }
+    } catch (e: any) {
+      console.error('Error enviando respuesta del jefe:', e)
+      setError(e?.message || 'No se pudo enviar la respuesta del jefe')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSelect = async (index: number) => {
+    if (!hasOptions || loading || answered || finished) return
+
     if (isMultiple) {
       setMultiSel(prev => {
         const next = new Set(prev)
-        if (next.has(i)) next.delete(i); else next.add(i)
+        if (next.has(index)) next.delete(index)
+        else next.add(index)
         return next
       })
-    } else {
-      answerSingle(i)
+      return
+    }
+
+    setSelectedIndex(index)
+    await submitAnswer(index)
+  }
+
+  const answerMulti = async () => {
+    if (!isMultiple) return
+    if (multiSel.size === 0) return
+
+    const first = Array.from(multiSel)[0]
+    setSelectedIndex(first)
+    await submitAnswer(first)
+  }
+
+  // 🔁 Siguiente reto del jefe (sólo si fue correcta y backend mandó nextIndex)
+  const handleNextBoss = () => {
+    if (bossNextIndex != null && !finished) {
+      loadBossQuestion(bossNextIndex, true)
     }
   }
 
-  // Narrativa del Boss
-  const narrativeText =
-    !eligible ? `Aún no puedes enfrentar al jefe. Requiere ${NEEDED}/${TOTAL_ITEMS} aciertos.`
-    : loading ? 'Cargando reto final…'
-    : error ? 'No se pudo cargar el reto del boss.'
-    : (item?.question || 'Aquí aparecerá el reto final cuando el backend lo provea.')
+  // 🔁 Reintentar SÓLO la pregunta actual (cuando se equivocó una vez)
+  const handleRetryQuestion = async () => {
+    if (!setId || lastWrongIndex == null) return
+    try {
+      await resetBossQuestion(setId, lastWrongIndex)
+      // volvemos a cargar esa misma pregunta
+      await loadBossQuestion(lastWrongIndex, true)
+    } catch (e: any) {
+      console.error('Error al resetear intento de la pregunta del jefe:', e)
+      setError(e?.message || 'No se pudo reintentar este reto del jefe')
+    }
+  }
+
+  // 🔁 Repetir TODA la evaluación del jefe (cuando llegó a 3 fallos)
+  const handleRestartBossRun = async () => {
+    if (!setId) return
+    try {
+      setLoading(true)
+      setError(null)
+
+      await resetBossRun(setId)
+
+      // Reseteamos estado local del boss
+      setFailCount(0)
+      setFinished(false)
+      setShowFailOverlay(false)
+      setShowCongrats(false)
+      setBossNextIndex(null)
+      setAnswered(false)
+      setSelectedIndex(null)
+      setWasCorrect(null)
+      setExplanation(null)
+      setLastWrongIndex(null)
+
+      // Volvemos a empezar desde la 16
+      await loadBossQuestion(16, true)
+    } catch (e: any) {
+      console.error('Error al resetear la evaluación del jefe:', e)
+      setError(
+        e?.message ||
+          'No se pudo reiniciar la evaluación del jefe. Intenta de nuevo.'
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleFinish = async () => {
+    if (!setId) {
+      nav('/')
+      return
+    }
+
+    try {
+      await getSetSummary(setId)
+    } catch (e) {
+      console.error('Error obteniendo resumen del set:', e)
+    } finally {
+      nav('/result')
+    }
+  }
 
   return (
     <div
@@ -198,6 +338,7 @@ export default function Boss() {
         borderRadius: 16
       }}
     >
+      {/* Fondo */}
       <img
         src={assets.bg.jefes}
         alt="Fondo Boss"
@@ -207,7 +348,8 @@ export default function Boss() {
           position: 'absolute',
           inset: 0,
           objectFit: 'cover',
-          objectPosition: 'center'
+          objectPosition: 'center',
+          filter: 'brightness(.9)'
         }}
       />
 
@@ -224,76 +366,312 @@ export default function Boss() {
           zIndex: 4
         }}
       >
-        <h2 style={{ color: '#fff', textShadow: '0 2px 6px rgba(0,0,0,.6)' }}>
+        <h2
+          style={{
+            color: '#fff',
+            textShadow: '0 2px 6px rgba(0,0,0,.6)'
+          }}
+        >
           Jefe del nivel
         </h2>
 
-        <div className="card" style={{ ...panelStyle, display: 'flex', alignItems: 'center', gap: 12 }}>
-          <img src={assets.characters.boss} alt="Jefe" style={{ width: 64, height: 64, borderRadius: 12, objectFit: 'cover' }} />
+        <div
+          className="card"
+          style={{
+            ...panelStyle,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12
+          }}
+        >
+          <img
+            src={assets.characters.boss}
+            alt="Jefe"
+            style={{
+              height: 64,
+              borderRadius: 12,
+              objectFit: 'cover'
+            }}
+          />
           <div>
-            <strong>Ramírez</strong>
-            <div style={{ fontSize: 12, opacity: .85 }}>
-              {eligible ? 'Desbloqueado' : 'Bloqueado'}
+            <strong>Ramírez, Jefe del nivel</strong>
+            <div style={{ fontSize: 12, opacity: 0.85 }}>
+              {finished && showCongrats
+                ? 'Has completado el reto del jefe.'
+                : totalBoss && currentIndex
+                ? `Reto del jefe · Pregunta ${currentIndex} de ${totalBoss}`
+                : 'Reto final del nivel'}
+            </div>
+            {/* 🔹 Info de fallos */}
+            <div style={{ fontSize: 11, opacity: 0.8, marginTop: 4 }}>
+              Fallos: {failCount}/{MAX_FAILS}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Contenido en grid */}
+      {/* Contenido */}
       <div
         style={{
           position: 'absolute',
           inset: 0,
           display: 'grid',
-          gridTemplateRows: 'auto auto auto auto',
           gap: 12,
-          padding: '120px 24px 24px', // espacio superior por header
-          zIndex: 3
+          padding: '120px 24px 24px',
+          zIndex: 2
         }}
       >
-        {/* Explicación: SIEMPRE visible (mismo estilo que narrativa) */}
+        {/* Explicación */}
         <div
           className="card"
-          style={{ ...panelStyle, width: 'min(1100px, 92%)', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 6 }}
+          style={{
+            ...panelStyle,
+            width: 'min(1100px, 92%)',
+            margin: '0 auto',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6
+          }}
           aria-live="polite"
           role="status"
         >
           <h3 style={{ margin: 0 }}>Explicación</h3>
-          <div>{answered ? (explanation || 'Sin explicación del backend.') : 'Aquí aparecerá la explicación después de responder.'}</div>
+          <div style={{ fontSize: '0.9rem' }}>
+            {answered || finished
+              ? explanation || 'Sin explicación devuelta por el backend.'
+              : 'Aquí aparecerá la explicación después de responder.'}
+          </div>
+          {error && (
+            <p
+              style={{
+                marginTop: 8,
+                color: '#ffd3d3',
+                fontSize: '0.85rem'
+              }}
+            >
+              {error}
+            </p>
+          )}
         </div>
 
         {/* Narrativa */}
-        <div className="card" style={{ ...panelStyle, width: 'min(1100px, 92%)', margin: '0 auto', minHeight: 56, display: 'flex', alignItems: 'center' }}>
-          <p style={{ margin: 0 }}>{narrativeText}</p>
+        <div
+          className="card"
+          style={{
+            ...panelStyle,
+            width: 'min(1100px, 92%)',
+            margin: '0 auto',
+            minHeight: 56,
+            display: 'flex',
+            alignItems: 'center'
+          }}
+        >
+          <p style={{ margin: 0 }}>
+            {isLoadingNext
+              ? 'Cargando siguiente reto del jefe…'
+              : narrativeText}
+          </p>
         </div>
 
-        {/* Opciones (con fallback) */}
+        {/* Opciones */}
         <div style={{ display: 'grid', placeItems: 'center' }}>
-          <div style={{ display: 'grid', gap: 18, gridTemplateColumns: '1fr 1fr', width: 'min(1100px, 92%)' }}>
-            {renderOptions.map((text, i) => (
-              <OptionButton
-                key={i}
-                label={String.fromCharCode(65 + i)}
-                text={text}
-                state={getState(i)}
-                disabled={!eligible || !hasOptions || answered}
-                onClick={() => eligible && hasOptions && onOptionClick(i)}
-              />
-            ))}
+          <div
+            style={{
+              display: 'grid',
+              gap: 18,
+              gridTemplateColumns: '1fr 1fr',
+              width: 'min(1100px, 92%)'
+            }}
+          >
+            {displayOptions.length === 0 && (
+              <p style={{ margin: 0 }}>No hay opciones para este reto.</p>
+            )}
+
+            {displayOptions.map((text, index0) => {
+              const index = index0 + 1 // 1,2,3,4
+              return (
+                <OptionButton
+                  key={index}
+                  label={String.fromCharCode(64 + index)} // 1→A, 2→B, 3→C, 4→D
+                  text={text}
+                  state={getState(index)}
+                  disabled={loading || finished}
+                  onClick={() => handleSelect(index)}
+                />
+              )
+            })}
           </div>
         </div>
 
         {/* Botonera */}
-         <div style={{ display: 'flex', justifyContent: 'center', gap: 12, alignItems: 'end' }}>
-          {isMultiple && !answered && (
-            <button onClick={answerMulti} disabled={multiSel.size === 0}>
-              Responder
-            </button>
-          )}
-          <button onClick={() => nav(`/level/${levelKey}`)}>Volver al nivel</button>
-          <button onClick={() => nav('/result')}>Terminar</button>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            gap: 12,
+            alignItems: 'end'
+          }}
+        >
+          {/* Siguiente reto del Boss (solo si ya respondiste CORRECTO
+              y el backend mandó nextIndex) */}
+          {!finished &&
+            answered &&
+            !loading &&
+            wasCorrect === true &&
+            bossNextIndex != null && (
+              <button onClick={handleNextBoss}>Siguiente reto</button>
+            )}
+
+          {/* Reintentar ESTE reto cuando está mal pero aún no llegó a 3 fallos */}
+          {!finished &&
+            answered &&
+            !loading &&
+            wasCorrect === false &&
+            lastWrongIndex != null &&
+            failCount < MAX_FAILS && (
+              <button onClick={handleRetryQuestion}>
+                Reintentar este reto
+              </button>
+            )}
+
+          <button onClick={() => nav(`/level/${levelKey}`)}>
+            Volver al nivel
+          </button>
         </div>
       </div>
+
+      {/* Overlay de FELICITACIÓN final */}
+      {showCongrats && !showFailOverlay && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 10,
+            background: 'rgba(0,0,0,.65)',
+            display: 'grid',
+            placeItems: 'center',
+            padding: 24
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Felicitación final del jefe"
+        >
+          <div
+            className="card"
+            style={{
+              width: 'min(900px, 92%)',
+              background: 'rgba(0,0,0,.75)',
+              border: '1px solid rgba(255,255,255,.25)',
+              borderRadius: 12,
+              padding: 24,
+              display: 'grid',
+              gap: 16,
+              textAlign: 'center'
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 10
+              }}
+            >
+              <img
+                src={assets.characters.boss}
+                alt="Ramírez, Jefe del nivel"
+                style={{
+                  width: 96,
+                  borderRadius: 16,
+                  objectFit: 'cover'
+                }}
+              />
+              <h3 style={{ margin: 0 }}>🏁 Evaluación del nivel superado </h3>
+            </div>
+
+            <p
+              style={{
+                margin: 0,
+                whiteSpace: 'pre-line',
+                lineHeight: 1.5,
+                fontSize: '0.98rem',
+                maxWidth: '90%',
+                justifySelf: 'center'
+              }}
+            >
+              Has demostrado que tu lógica puede estar al nivel de las IA. Bienvenido a{' '}
+              GhostCoder.
+              {'\n'}
+              Prepárate, porque lo que viene ya no será solo simulación: será la realidad.
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
+            <button onClick={handleFinish}>
+              Ver resultado final del nivel
+            </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🔥 Overlay de EVALUACIÓN FALLIDA (3 fallos) */}
+      {showFailOverlay && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 11,
+            background: 'rgba(0,0,0,.75)',
+            display: 'grid',
+            placeItems: 'center',
+            padding: 24
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Evaluación del jefe fallida"
+        >
+          <div
+            className="card"
+            style={{
+              width: 'min(900px, 92%)',
+              background: 'rgba(0,0,0,.8)',
+              border: '1px solid rgba(255,255,255,.3)',
+              borderRadius: 12,
+              padding: 24,
+              display: 'grid',
+              gap: 16,
+              textAlign: 'center'
+            }}
+          >
+            <h3 style={{ margin: 0 }}>⚠ Evaluación del jefe no superada</h3>
+            <p
+              style={{
+                margin: 0,
+                whiteSpace: 'pre-line',
+                lineHeight: 1.5,
+                fontSize: '0.95rem',
+                maxWidth: '90%',
+                justifySelf: 'center'
+              }}
+            >
+              Fallaste la evaluación del jefe en este intento.
+              {'\n'}
+              Vuelve a repetir la evaluación del jefe para poder pasar de nivel.
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
+              <button
+                onClick={handleRestartBossRun}
+                style={{ minWidth: 180, padding: '10px 18px' }}
+              >
+                Repetir evaluación del jefe
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
+
+export default Boss

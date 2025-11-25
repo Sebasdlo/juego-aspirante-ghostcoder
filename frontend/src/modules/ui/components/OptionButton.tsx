@@ -1,6 +1,7 @@
+// scenes/components/OptionButton.tsx
 import React from 'react'
 
-type OptionState = 'idle' | 'selected' | 'correct' | 'incorrect'
+export type OptionState = 'idle' | 'selected' | 'correct' | 'incorrect'
 
 type Props = {
   label: string            // "A" | "B" | "C" | "D"
@@ -10,10 +11,16 @@ type Props = {
   onClick?: () => void
 }
 
-export default function OptionButton({ label, text, state = 'idle', disabled, onClick }: Props) {
+export default function OptionButton({
+  label,
+  text,
+  state = 'idle',
+  disabled,
+  onClick
+}: Props) {
   const base: React.CSSProperties = {
     display: 'flex',
-    alignItems: 'center',
+    alignItems: 'flex-start',        // 👈 para que el texto multi-línea se vea bien
     gap: 16,
     justifyContent: 'flex-start',
     padding: '14px 16px',
@@ -45,17 +52,19 @@ export default function OptionButton({ label, text, state = 'idle', disabled, on
     fontWeight: 700,
     padding: '8px 14px',
     borderRadius: 999,
-    background: 'linear-gradient(90deg, rgba(121,214,255,.35), rgba(178,152,255,.35))',
+    background:
+      'linear-gradient(90deg, rgba(121,214,255,.35), rgba(178,152,255,.35))',
     border: '1px solid rgba(255,255,255,.18)',
     color: '#fff'
   }
 
   const textStyle: React.CSSProperties = {
     flex: '1 1 auto',
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    opacity: 1,
+    // 👇 permitir varias líneas sin recortar
+    whiteSpace: 'normal',
+    overflow: 'visible',
+    textOverflow: 'unset',
+    opacity: 1
   }
 
   return (
@@ -64,8 +73,10 @@ export default function OptionButton({ label, text, state = 'idle', disabled, on
       style={base}
       disabled={disabled}
       onClick={disabled ? undefined : onClick}
-      aria-pressed={state === 'selected' || state === 'correct' || state === 'incorrect'}
-      title={text}
+      aria-pressed={
+        state === 'selected' || state === 'correct' || state === 'incorrect'
+      }
+      title={text} // si quieres, puedes quitar el title
     >
       <span style={chip}>Opción {label}</span>
       <span style={textStyle}>{text}</span>

@@ -9,17 +9,17 @@ function normalizeName(n?: string) {
 
 async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
-    return res.status(405).json({ ok:false, error:{ message:'METHOD_NOT_ALLOWED' } })
+    return res.status(405).json({ ok: false, error: { message: 'METHOD_NOT_ALLOWED' } })
   }
 
   const { setId, mentorName } = req.query as { setId?: string; mentorName?: string }
   const { userId, mode } = req.query as { userId?: string; mode?: string }
 
   if (!setId || typeof setId !== 'string') {
-    return res.status(400).json({ ok:false, error:{ message:'SET_ID_REQUIRED' } })
+    return res.status(400).json({ ok: false, error: { message: 'SET_ID_REQUIRED' } })
   }
   if (!mentorName || typeof mentorName !== 'string') {
-    return res.status(400).json({ ok:false, error:{ message:'MENTOR_NAME_REQUIRED' } })
+    return res.status(400).json({ ok: false, error: { message: 'MENTOR_NAME_REQUIRED' } })
   }
 
   // 1) Resolver mentor por nombre (case-insensitive)
@@ -27,14 +27,17 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     .from('character')
     .select('id, name, role')
     .eq('is_mentor', true)
-    .ilike('name', normalizeName(mentorName).replace(/%/g,'\\%'))
+    .ilike('name', normalizeName(mentorName).replace(/%/g, '\\%'))
     .maybeSingle()
 
   if (mentorErr) {
-    return res.status(500).json({ ok:false, error:{ message:'MENTOR_QUERY_FAILED', detail: mentorErr.message } })
+    return res.status(500).json({
+      ok: false,
+      error: { message: 'MENTOR_QUERY_FAILED', detail: mentorErr.message }
+    })
   }
   if (!mentorRow) {
-    return res.status(404).json({ ok:false, error:{ message:'MENTOR_NOT_FOUND' } })
+    return res.status(404).json({ ok: false, error: { message: 'MENTOR_NOT_FOUND' } })
   }
 
   // 2) Traer los 3 items (main, main, random) de ese mentor dentro del set
@@ -43,14 +46,17 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     .select('item_index, kind, question, options_json, mentor_id')
     .eq('set_id', setId)
     .eq('mentor_id', mentorRow.id)
-    .in('kind', ['main','random'])
+    .in('kind', ['main', 'random'])
     .order('item_index', { ascending: true })
 
   if (itemsErr) {
-    return res.status(500).json({ ok:false, error:{ message:'ITEMS_QUERY_FAILED', detail: itemsErr.message } })
+    return res.status(500).json({
+      ok: false,
+      error: { message: 'ITEMS_QUERY_FAILED', detail: itemsErr.message }
+    })
   }
   if (!items || items.length === 0) {
-    return res.json({ ok:true, mentor: mentorRow, items: [] })
+    return res.json({ ok: true, mentor: mentorRow, items: [] })
   }
 
   // Si no hay modo, devuelve el listado simple (como ya lo tenías)
@@ -65,7 +71,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   // 3) Modo secuencial: devolver SOLO el siguiente pendiente del mentor
   if (mode === 'next') {
     if (!userId) {
-      return res.status(400).json({ ok:false, error:{ message:'USER_ID_REQUIRED' } })
+      return res.status(400).json({ ok: false, error: { message: 'USER_ID_REQUIRED' } })
     }
 
     // a) saber next_index global del set (para respetar el orden general)
@@ -76,10 +82,10 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       .maybeSingle()
 
     if (gErr || !gset) {
-      return res.status(404).json({ ok:false, error:{ message:'SET_NOT_FOUND' } })
+      return res.status(404).json({ ok: false, error: { message: 'SET_NOT_FOUND' } })
     }
     if (gset.status !== 'open') {
-      return res.status(400).json({ ok:false, error:{ message:'SET_NOT_OPEN' } })
+      return res.status(400).json({ ok: false, error: { message: 'SET_NOT_OPEN' } })
     }
 
     const mentorIndexes = items.map(i => i.item_index)
@@ -93,19 +99,45 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       .in('item_index', mentorIndexes)
 
     if (attErr) {
-      return res.status(500).json({ ok:false, error:{ message:'ATTEMPTS_QUERY_FAILED', detail: attErr.message } })
+      return res.status(500).json({
+        ok: false,
+        error: { message: 'ATTEMPTS_QUERY_FAILED', detail: attErr.message }
+      })
     }
 
     const answered = new Set((attempts ?? []).map(a => a.item_index))
 
-    // c) “Siguiente” del mentor = primer índice del mentor que:
-    //    - sea >= next_index global del set, y
-    //    - no esté respondido todavía
-    const nextForMentor = mentorIndexes.find(ix => ix >= (gset.next_index ?? 1) && !answered.has(ix))
-                      ?? mentorIndexes.find(ix => !answered.has(ix)) // fallback por si el global apunta a otro mentor
+    // 👉 Pendientes de este mentor
+    const remaining = mentorIndexes.filter(ix => !answered.has(ix))
+
+    // 👉 Si solo queda 1 pendiente y es RANDOM, aquí metemos la probabilidad
+    if (remaining.length === 1) {
+      const lastIndex = remaining[0]
+      const lastItem = items.find(i => i.item_index === lastIndex)
+
+      if (lastItem && lastItem.kind === 'random') {
+        const RANDOM_PROB = 0.5 // 50% de que aparezca el random (ajusta si quieres)
+
+        const roll = Math.random()
+        // 🧠 Si el dado "falla", consideramos que el mentor terminó SIN mostrar el random
+        if (roll >= RANDOM_PROB) {
+          return res.json({
+            ok: true,
+            finishedForMentor: true,
+            mentor: mentorRow
+          })
+        }
+        // Si el dado "acierta", seguimos y devolvemos este random normalmente 👇
+      }
+    }
+
+    // 👉 Lógica normal: siguiente ítem del mentor, respetando next_index global
+    const nextForMentor =
+      mentorIndexes.find(ix => ix >= (gset.next_index ?? 1) && !answered.has(ix)) ??
+      mentorIndexes.find(ix => !answered.has(ix)) // fallback por si el global apunta a otro mentor
 
     if (!nextForMentor) {
-      // Ya respondió los 3 de este mentor
+      // Ya respondió (o descartamos) todos los de este mentor
       return res.json({
         ok: true,
         finishedForMentor: true,
@@ -135,7 +167,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     })
   }
 
-  return res.status(400).json({ ok:false, error:{ message:'INVALID_MODE' } })
+  return res.status(400).json({ ok: false, error: { message: 'INVALID_MODE' } })
 }
 
 export default withCors(handler)

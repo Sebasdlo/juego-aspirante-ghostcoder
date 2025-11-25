@@ -1,73 +1,72 @@
-// src/modules/api/client.ts
-export type HttpInit = RequestInit & {
-  timeoutMs?: number;
-  retries?: number;
+// modules/api/client.ts
+// ------------------------------------------------------
+//  CLIENTE HTTP + CLIENTE SUPABASE EN UN SOLO ARCHIVO
+// ------------------------------------------------------
+
+import { createClient } from '@supabase/supabase-js';
+
+// ===============================
+//  1) CLIENTE HTTP (Backend API)
+// ===============================
+const API_BASE_URL =
+  (import.meta.env.VITE_API_BASE_URL as string | undefined) ??
+  'http://localhost:3000/api';
+
+type HttpOptions = {
+  method?: string;
+  headers?: Record<string, string>;
+  body?: BodyInit | null;
 };
 
-// Prioriza VITE_API_URL; fallback a VITE_API_BASE_URL por compatibilidad
-const RAW_BASE =
-  (import.meta.env as any).VITE_API_URL ||
-  (import.meta.env as any).VITE_API_BASE_URL ||
-  "";
+export async function http<T>(path: string, options: HttpOptions = {}): Promise<T> {
+  const url = `${API_BASE_URL}${path}`;
 
-const BASE = RAW_BASE.replace(/\/+$/, ""); // sin barra final
+  const resp = await fetch(url, {
+    method: options.method ?? 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers ?? {})
+    },
+    body: options.body ?? null
+  });
 
-function buildUrl(path: string) {
-  const p = path.startsWith("/") ? path : `/${path}`;
-  return `${BASE}${p}`;
-}
+  const rawText = await resp.text();
+  let data: any = null;
 
-export async function http<T>(path: string, init: HttpInit = {}): Promise<T> {
-  const { timeoutMs = 12000, retries = 0, ...rest } = init;
-  let lastErr: any;
-
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-
+  if (rawText) {
     try {
-      // ⚠️ No fuerces Content-Type en GET: evita preflight CORS
-      const method = (rest.method || "GET").toUpperCase();
-      const baseHeaders: Record<string, string> = {};
-      if (method !== "GET" && method !== "HEAD") {
-        baseHeaders["Content-Type"] = "application/json";
-      }
-
-      const res = await fetch(buildUrl(path), {
-        ...rest,
-        method,
-        signal: controller.signal,
-        headers: {
-          ...baseHeaders,
-          ...(rest.headers || {}),
-        },
-      });
-
-      clearTimeout(timer);
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`HTTP ${res.status} ${res.statusText}: ${text || "(sin cuerpo)"}`);
-      }
-
-      const ct = res.headers.get("content-type") || "";
-      if (ct.includes("application/json")) {
-        return (await res.json()) as T;
-      } else {
-        const text = await res.text();
-        try {
-          return JSON.parse(text) as T;
-        } catch {
-          throw new Error(`Respuesta no JSON: ${text.slice(0, 200)}`);
-        }
-      }
-    } catch (e) {
-      clearTimeout(timer);
-      lastErr = e;
-      if (attempt === retries) break;
-      await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+      data = JSON.parse(rawText);
+    } catch {
+      data = rawText;
     }
   }
 
-  throw lastErr ?? new Error("Fallo de red");
+  if (!resp.ok) {
+    const message =
+      data?.error?.message ??
+      data?.message ??
+      `HTTP ${resp.status} ${resp.statusText}`;
+    throw new Error(message);
+  }
+
+  return data as T;
 }
+
+// ===============================
+//  2) SUPABASE CLIENT (Realtime)
+// ===============================
+
+export const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL!,
+  import.meta.env.VITE_SUPABASE_ANON_KEY!,
+  {
+    auth: {
+      persistSession: false
+    },
+    realtime: {
+      params: {
+        eventsPerSecond: 5
+      }
+    }
+  }
+);

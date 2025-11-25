@@ -84,12 +84,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     // Ya terminó los 3 de este mentor
     return res.json({ ok:true, finishedForMentor: true })
   }
-
-  // Enforzar orden global
-  if (itemIndex < (gset.next_index ?? 1)) {
-    return res.status(409).json({ ok:false, error:{ message:'OUT_OF_ORDER_INDEX', expected: gset.next_index } })
-  }
-
+  
   const target = items.find(i => i.item_index === itemIndex)
   if (!target) return res.status(404).json({ ok:false, error:{ message:'ITEM_NOT_FOUND' } })
 

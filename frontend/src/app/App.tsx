@@ -10,8 +10,8 @@ export default function App() {
 
   const activeStyle: React.CSSProperties = {
     ...linkStyle,
-    background: 'rgba(255,255,255,.12)',
-    border: '1px solid rgba(255,255,255,.2)'
+    background: 'rgba(255,255,255,0.12)',
+    border: '1px solid rgba(255,255,255,0.2)'
   }
 
   return (
@@ -37,38 +37,14 @@ export default function App() {
         }}
       >
         <h1 style={{ margin: 0, fontSize: 18, letterSpacing: .3 }}>Aspirante a GhostCoder</h1>
-
-        <nav aria-label="Principal" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <NavLink to="/" end
-            style={({ isActive }) => (isActive ? activeStyle : linkStyle)}>
-            Inicio
-          </NavLink>
-          <NavLink to="/level/junior"
-            style={({ isActive }) => (isActive ? activeStyle : linkStyle)}>
-            Level
-          </NavLink>
-          <NavLink to="/boss/junior"
-            style={({ isActive }) => (isActive ? activeStyle : linkStyle)}>
-            Boss
-          </NavLink>
-          <NavLink to="/result"
-            style={({ isActive }) => (isActive ? activeStyle : linkStyle)}>
-            Resultado
-          </NavLink>
-        </nav>
       </header>
 
       {/* Contenido principal centrado */}
       <main id="main" style={{ padding: '16px 0' }}>
-        <div style={{ width: 'min(1400px, 96%)', margin: '0 auto' }}>
+        <div style={{ margin: '0 auto' }}>
           <Outlet />
         </div>
       </main>
-
-      {/* Footer discreto */}
-      <footer style={{ padding: '10px 0 18px', opacity: .7, textAlign: 'center' }}>
-        v0.1 · MVP Frontend
-      </footer>
     </div>
   )
 }

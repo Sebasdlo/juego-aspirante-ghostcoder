@@ -22,6 +22,7 @@ export const router = createBrowserRouter([
       { index: true, element: withLoader(<Home />) },
       { path: 'level/:levelKey', element: withLoader(<Level />) },
       { path: 'challenge/:levelKey', element: withLoader(<Challenge />) },
+      { path: 'challenge/:levelKey/:mentorKey', element: withLoader(<Challenge />) },
       { path: 'boss/:levelKey', element: withLoader(<Boss />) },
       { path: 'result', element: withLoader(<Result />) },
       // 👇 Ruta comodín 404

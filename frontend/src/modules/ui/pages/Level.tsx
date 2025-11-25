@@ -1,133 +1,238 @@
-import React, { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { Api } from '@api/services/Index'
-import { useStore } from '@state/store'
-import MentorStage from '@scenes/components/MentorStage'
+// pages/Level.tsx
+import React, { useEffect, useState, useCallback } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+
 import { assets } from '@scenes/assets/assets.manifest'
-import { TOTAL_ITEMS, NEEDED } from '@domain/constants'
+import MentorStage from '@scenes/components/MentorStage'
+import { useGame } from '@state/store'
 
-type IntroScene = {
-  text: string
-  img?: string
+import {
+  getBossEligibility,
+  unlockBoss
+} from '@api/endpoints'
+
+const TOTAL_ITEMS = 15
+const NEEDED = 10
+
+type Progress = {
+  setId: string | null
+  score: number
 }
 
-export default function Level() {
-  React.useEffect(() => {
-    document.title = 'Level | GhostCoder'
-  }, [])
-  const { levelKey = '' } = useParams()
+const Level: React.FC = () => {
   const nav = useNavigate()
-  const store = useStore()
-  const { progress } = store
+  const params = useParams<{ levelKey: string }>()
+  const urlLevelKey = params.levelKey || 'junior'
 
+  const game = useGame()
+  const {
+    setId: storeSetId,
+    level: storeLevel,
+    completedMentors,
+    bootstrap,
+    hardReset
+  } = game
+
+  const effectiveLevelKey = storeLevel || urlLevelKey
+  const effectiveSetId = storeSetId
+
+  const [canFightBoss, setCanFightBoss] = useState(false)
+  const [progress, setProgress] = useState<Progress>({ setId: null, score: 0 })
   const [msg, setMsg] = useState<string>('')
-  const [loading, setLoading] = useState(false)
 
-  // Intro narrativa (secuencia de escenas)
-  const [introLoading, setIntroLoading] = useState(false)
-  const [introError, setIntroError] = useState<string | null>(null)
-  const [introSteps, setIntroSteps] = useState<IntroScene[]>([])
-  const [introIndex, setIntroIndex] = useState(0)
-  const showIntro = introSteps.length > 0
+  // Overlay cuando terminaste todos los mentores pero NO desbloqueaste al Boss
+  const [showFailOverlay, setShowFailOverlay] = useState(false)
 
+  // Si entramos directo al level (o recargamos) y no hay setId, intentamos bootstrap
   useEffect(() => {
-    let alive = true
-    const run = async () => {
-      setIntroLoading(true)
-      setIntroError(null)
-      setIntroSteps([])
-      setIntroIndex(0)
-      try {
-        const anyApi = Api as any
-        if (typeof anyApi?.getLevelIntro === 'function') {
-          const dto = await anyApi.getLevelIntro(levelKey)
-          if (!alive) return
-
-          // Soporte 1) Escenas múltiples desde backend: dto.scenes?: { text, img? }[]
-          // Soporte 2) Fallback a un solo texto: dto.intro?: string
-          const scenesFromApi: IntroScene[] = Array.isArray(dto?.scenes)
-            ? (dto.scenes as any[])
-                .map((s) => ({
-                  text: (s?.text ?? '').toString().trim(),
-                  img: (s?.img ?? '').toString().trim() || undefined,
-                }))
-                .filter((s) => s.text.length > 0)
-            : []
-
-          if (scenesFromApi.length > 0) {
-            setIntroSteps(scenesFromApi)
-          } else {
-            const text = (dto?.intro ?? '').toString().trim()
-            if (text) {
-              // Fallback mínimo en 2-3 pasos reusando assets ya existentes
-              // Paso 1: Bienvenida/contexto (texto devuelto por backend)
-              // Paso 2: Escena visual del mentor/escenario
-              const fallback: IntroScene[] = [
-                { text },
-                { text: 'Conoce a tus mentores y prepárate para los retos del nivel.', img: assets.bg.mentor },
-              ]
-              setIntroSteps(fallback)
-            }
-          }
-        } else {
-          // Si no existe el método en el cliente, no forzamos nada.
-        }
-      } catch (e: any) {
-        if (!alive) return
-        setIntroError(e?.message || 'No se pudo cargar la introducción del nivel.')
-      } finally {
-        if (!alive) return
-        setIntroLoading(false)
-      }
+    if (!storeSetId) {
+      bootstrap()
     }
-    run()
-    return () => { alive = false }
-  }, [levelKey])
+  }, [storeSetId, bootstrap])
 
-  const nextIntro = () => {
-    setIntroIndex((i) => {
-      const next = i + 1
-      if (next >= introSteps.length) {
-        // Cierra la intro cuando termina la secuencia
-        setIntroSteps([])
-        return i
-      }
-      return next
+  // Precarga de imágenes
+  useEffect(() => {
+    const urls = [
+      assets.bg.mentor,
+      assets.characters.camila,
+      assets.characters.hernan,
+      assets.characters.sofia,
+      assets.characters.diego,
+      assets.characters.lucia,
+      assets.characters.boss
+    ].filter(Boolean)
+
+    urls.forEach(src => {
+      const img = new Image()
+      img.src = src
     })
-  }
+  }, [])
 
-const start = async () => {
-  setLoading(true)
-  try {
-    const userId = 'dev'   // ⚠️ usa tu user real si lo tienes en el store
-    const r = await Api.startLevel(levelKey, userId)
-    const nextIndex = r.nextIndex ?? 1
-    const anyStore = store as any
+  const refreshEligibility = useCallback(async () => {
+    if (!effectiveSetId) return
+    try {
+      const resp = await getBossEligibility(effectiveSetId)
+      if (!resp?.ok) return
 
-    if (typeof anyStore.startProgress === 'function') {
-      anyStore.startProgress({ levelKey, setId: r.setId, nextIndex })
-    } else if (typeof anyStore.setProgress === 'function') {
-      anyStore.setProgress({ levelKey, setId: r.setId, nextIndex, score: 0 })
+      const anyResp = resp as any
+      const score =
+        typeof anyResp.correctAny === 'number'
+          ? anyResp.correctAny
+          : typeof anyResp.correctRandom === 'number'
+          ? anyResp.correctRandom
+          : typeof anyResp.correctMain === 'number'
+          ? anyResp.correctMain
+          : 0
+
+      setProgress({
+        setId: effectiveSetId,
+        score
+      })
+
+      const eligible = !!anyResp.eligible
+      setCanFightBoss(eligible)
+    } catch (e) {
+      console.error('Error obteniendo elegibilidad Boss:', e)
+    }
+  }, [effectiveSetId])
+
+  // Mensaje "No hay set activo" para que desaparezca cuando sí hay set
+  useEffect(() => {
+    if (!effectiveSetId) {
+      setMsg('No hay un set activo. Vuelve al inicio para comenzar el nivel.')
     } else {
-      if (typeof anyStore.setNextIndex === 'function') anyStore.setNextIndex(nextIndex)
-      if (typeof anyStore.setSetId === 'function') anyStore.setSetId(r.setId)
+      setMsg(prev =>
+        prev === 'No hay un set activo. Vuelve al inicio para comenzar el nivel.'
+          ? ''
+          : prev
+      )
+      // al tener setId podemos refrescar elegibilidad
+      refreshEligibility()
+    }
+  }, [effectiveSetId, refreshEligibility])
+
+  const handleGoBoss = async () => {
+    if (!effectiveSetId) {
+      setMsg('No hay un set activo. Vuelve al inicio para comenzar el nivel.')
+      return
     }
 
-    setMsg(`Set creado: ${r.setId}`)
-  } catch (e: any) {
-    setMsg(`Error: ${e?.message ?? 'No se pudo iniciar el nivel'}`)
-  } finally {
-    setLoading(false)
-  }
-}
+    try {
+      const elig = await getBossEligibility(effectiveSetId)
+      if (!elig?.ok) {
+        throw new Error('No se pudo verificar elegibilidad del jefe')
+      }
 
-  const handleCharacterClick = (key: string) => {
-    const anyStore = store as any
-    if (typeof anyStore.selectMentor === 'function') anyStore.selectMentor(key)
-    nav(`/challenge/${levelKey}?mentor=${key}`)
+      const anyElig = elig as any
+      const currentScore =
+        typeof anyElig.correctAny === 'number'
+          ? anyElig.correctAny
+          : typeof anyElig.correctRandom === 'number'
+          ? anyElig.correctRandom
+          : 0
+
+      setProgress({
+        setId: effectiveSetId,
+        score: currentScore
+      })
+
+      if (!anyElig.eligible) {
+        setCanFightBoss(false)
+        setMsg(
+          `Todavía no puedes enfrentar al jefe. Necesitas al menos ${NEEDED}/${TOTAL_ITEMS} aciertos.`
+        )
+        return
+      }
+
+      await unlockBoss(effectiveSetId)
+      setCanFightBoss(true)
+      setMsg('Jefe desbloqueado. ¡Vamos!')
+      nav(`/boss/${effectiveLevelKey}`)
+    } catch (e: any) {
+      console.error('Error al ir al Boss:', e)
+      setMsg(
+        e?.message ||
+          'No se pudo verificar o desbloquear al jefe. Intenta de nuevo.'
+      )
+    }
   }
 
-  const canFightBoss = (progress?.score ?? 0) >= NEEDED
+  // Click en mentor: si ya está completado, no dejamos entrar
+  const handleCharacterClick = (mentorKey: string) => {
+    try {
+      if (completedMentors.includes(mentorKey)) {
+        setMsg(
+          'Ya completaste los retos con este mentor. Elige otro o ve al Boss.'
+        )
+        return
+      }
+
+      if (!effectiveSetId) {
+        setMsg('No hay un set activo. Vuelve al inicio para comenzar el nivel.')
+        return
+      }
+
+      setMsg('Cargando reto del mentor...')
+      nav(`/challenge/${effectiveLevelKey}/${mentorKey}`)
+    } catch (e: any) {
+      console.error(e)
+      setMsg(e?.message || 'No se pudo cargar el reto del mentor.')
+    }
+  }
+
+  const handleGoHome = async () => {
+    try {
+      await hardReset('junior')
+    } catch (e) {
+      console.error('Error al hacer hardReset en Level:', e)
+    } finally {
+      nav('/')
+    }
+  }
+
+  // Detectar cuando el jugador terminó los 5 mentores y evaluar puntaje real en backend
+  useEffect(() => {
+    if (!effectiveSetId) return
+    if (completedMentors.length < 5) return // todavía faltan mentores
+
+    const run = async () => {
+      try {
+        const elig = await getBossEligibility(effectiveSetId)
+        if (!elig?.ok) return
+
+        const anyElig = elig as any
+        const score =
+          typeof anyElig.correctAny === 'number'
+            ? anyElig.correctAny
+            : typeof anyElig.correctRandom === 'number'
+            ? anyElig.correctRandom
+            : typeof anyElig.correctMain === 'number'
+            ? anyElig.correctMain
+            : 0
+
+        const eligible = !!anyElig.eligible
+
+        setProgress({
+          setId: effectiveSetId,
+          score
+        })
+        setCanFightBoss(eligible)
+
+        if (!eligible) {
+          setShowFailOverlay(true)
+        } else {
+          setShowFailOverlay(false)
+        }
+      } catch (e) {
+        console.error(
+          'Error evaluando elegibilidad del Boss al terminar mentores:',
+          e
+        )
+      }
+    }
+
+    run()
+  }, [completedMentors.length, effectiveSetId])
 
   return (
     <div
@@ -166,7 +271,7 @@ const start = async () => {
             { key: 'hernan', name: 'Hernán (automatización)', src: assets.characters.hernan },
             { key: 'sofia',  name: 'Sofía (soluciones)',    src: assets.characters.sofia },
             { key: 'diego',  name: 'Diego (seguridad)',      src: assets.characters.diego },
-            { key: 'lucia',  name: 'Lucía (datos)',          src: assets.characters.lucia },
+            { key: 'lucia',  name: 'Lucía (datos)',          src: assets.characters.lucia }
           ]}
           onCharacterClick={handleCharacterClick}
         />
@@ -184,22 +289,38 @@ const start = async () => {
           flexDirection: 'column'
         }}
       >
-        <img src={assets.characters.boss} alt="Jefe del nivel" style={{ width: 120, height: 120, borderRadius: 12 }} />
+        <img
+          src={assets.characters.boss}
+          alt="Jefe del nivel"
+          style={{ width: 120, height: 120, borderRadius: 12 }}
+        />
         <div className="card" style={{ background: 'rgba(0,0,0,.25)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <strong>Ramírez, Jefe del nivel</strong>
-            <span style={{
-              fontSize: 12, padding: '2px 8px', borderRadius: 999,
-              background: canFightBoss ? 'rgba(80,255,180,.15)' : 'rgba(255,210,120,.15)',
-              border: `1px solid ${canFightBoss ? 'rgba(80,255,180,.4)' : 'rgba(255,210,120,.4)'}`
-            }}>
+            <span
+              style={{
+                fontSize: 12,
+                padding: '2px 8px',
+                borderRadius: 999,
+                background: canFightBoss
+                  ? 'rgba(80,255,180,.15)'
+                  : 'rgba(255,210,120,.15)',
+                border: `1px solid ${
+                  canFightBoss
+                    ? 'rgba(80,255,180,.4)'
+                    : 'rgba(255,210,120,.4)'
+                }`
+              }}
+            >
               {canFightBoss ? 'Desbloqueado' : 'Bloqueado'}
             </span>
           </div>
-          <div style={{ opacity: .9, marginTop: 4 }}>
+          <div style={{ opacity: 0.9, marginTop: 4 }}>
             {canFightBoss
               ? `Listo para el Boss. Aciertos: ${progress?.score}/${TOTAL_ITEMS}`
-              : `Requiere ${NEEDED}/${TOTAL_ITEMS} aciertos. Aciertos: ${progress?.score ?? 0}/${TOTAL_ITEMS}`}
+              : `Requiere ${NEEDED}/${TOTAL_ITEMS} aciertos. Aciertos: ${
+                  progress?.score ?? 0
+                }/${TOTAL_ITEMS}`}
           </div>
         </div>
       </div>
@@ -217,79 +338,114 @@ const start = async () => {
           zIndex: 3
         }}
       >
-        <span style={{ fontSize: 15, textShadow: '0 1px 2px rgba(0,0,0,.5)' }}>
-          {msg || 'Pulsa “Iniciar” para generar el set de retos.'}
+        <span
+          style={{ fontSize: 15, textShadow: '0 1px 2px rgba(0,0,0,.5)' }}
+        >
+          {msg || 'Selecciona un mentor para comenzar la serie de retos.'}
         </span>
-        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <button disabled={loading} onClick={start} style={{ minWidth: 120, padding: '10px 18px' }}>
-            {loading ? 'Iniciando…' : 'Iniciar'}
-          </button>
-          <button disabled={!progress?.setId} onClick={() => nav(`/boss/${levelKey}`)} style={{ minWidth: 120, padding: '10px 18px' }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: 12,
+            justifyContent: 'center',
+            flexWrap: 'wrap'
+          }}
+        >
+          <button
+            onClick={handleGoBoss}
+            style={{ minWidth: 120, padding: '10px 18px' }}
+            disabled={!progress.setId}
+          >
             Ir al Boss
           </button>
-          <button onClick={() => nav('/')} style={{ minWidth: 120, padding: '10px 18px' }}>
+          <button
+            onClick={() => nav('/')}
+            style={{ minWidth: 120, padding: '10px 18px' }}
+          >
             Volver
+          </button>
+          <button
+            onClick={() => nav('/result')}
+            style={{ minWidth: 120, padding: '10px 18px' }}
+          >
+            ver progreso
           </button>
         </div>
       </div>
 
-      {/* Overlay de INTRO en SECUENCIA (IDs 8, 18, 19) */}
-      {showIntro && (
+      {/* Overlay cuando terminaste todos los mentores pero NO desbloqueaste al Boss */}
+      {showFailOverlay && (
         <div
-          style={{ position: 'absolute', inset: 0, zIndex: 10, background: 'rgba(0,0,0,.55)', display: 'grid', placeItems: 'center', padding: 24 }}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 12,
+            background: 'rgba(0,0,0,.65)',
+            display: 'grid',
+            placeItems: 'center',
+            padding: 24
+          }}
           role="dialog"
           aria-modal="true"
-          aria-label="Introducción del nivel"
+          aria-label="Simulación fallida"
         >
           <div
             className="card"
             style={{
-              width: 'min(980px, 94%)',
-              background: 'rgba(0,0,0,.6)',
-              border: '1px solid rgba(255,255,255,.2)',
+              width: 'min(900px, 92%)',
+              background: 'rgba(0,0,0,.75)',
+              border: '1px solid rgba(255,255,255,.25)',
               borderRadius: 12,
-              padding: 20,
+              padding: 24,
               display: 'grid',
-              gap: 14
+              gap: 16,
+              textAlign: 'center'
             }}
           >
-            {/* Imagen opcional por escena */}
-            {introSteps[introIndex]?.img && (
-              <div className="card" style={{ overflow: 'hidden', borderRadius: 12, padding: 0 }}>
-                <img
-                  src={introSteps[introIndex].img}
-                  alt="Escena"
-                  style={{ width: '100%', height: 'auto', display: 'block' }}
-                />
-              </div>
-            )}
-
-            {/* Texto de la escena */}
-            <div style={{ lineHeight: 1.5 }}>
-              {introLoading && <p>Cargando introducción…</p>}
-              {introError && <p style={{ color: '#ffd3d3' }}>{introError}</p>}
-              {!introLoading && !introError && (
-                <p style={{ margin: 0 }}>{introSteps[introIndex]?.text}</p>
-              )}
-            </div>
-
-            {/* Controles de escena */}
             <div
               style={{
                 display: 'flex',
-                justifyContent: 'space-between',
+                flexDirection: 'column',
                 alignItems: 'center',
-                marginTop: 6
+                gap: 10
               }}
             >
-              <span style={{ fontSize: 12, opacity: .9 }}>
-                Escena {introIndex + 1} de {introSteps.length}
-              </span>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={nextIntro} style={{ minWidth: 160, padding: '10px 18px' }}>
-                  {introIndex + 1 < introSteps.length ? 'Siguiente' : 'Continuar'}
-                </button>
-              </div>
+              <img
+                src={assets.characters.boss}
+                alt="Ramírez, Jefe del nivel"
+                style={{
+                  width: 96,
+                  borderRadius: 16,
+                  objectFit: 'cover'
+                }}
+              />
+              <h3 style={{ margin: 0 }}>Simulación fallida</h3>
+            </div>
+
+            <p
+              style={{
+                margin: 0,
+                whiteSpace: 'pre-line',
+                lineHeight: 1.5,
+                fontSize: '0.98rem',
+                maxWidth: '90%',
+                justifySelf: 'center'
+              }}
+            >
+              Has completado los retos con todos los mentores, pero no alcanzaste el
+              número mínimo de aciertos para desbloquear al jefe del nivel.
+              {'\n'}
+              Ramírez cierra la simulación y te indica que debes reiniciar el entrenamiento
+              desde el inicio. Esta vez, intenta mejorar tus decisiones en los retos clave.
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
+              <button
+                onClick={handleGoHome}
+                style={{ minWidth: 180, padding: '10px 18px' }}
+              >
+                Reiniciar simulación
+              </button>
             </div>
           </div>
         </div>
@@ -297,3 +453,5 @@ const start = async () => {
     </div>
   )
 }
+
+export default Level
