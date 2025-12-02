@@ -1,4 +1,4 @@
-// pages/Result.tsx 
+// pages/Result_senior.tsx
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
@@ -63,12 +63,13 @@ type SummaryData = {
   byMentor: Record<string, MentorStats>
 }
 
-const Result: React.FC = () => {
+const Result_senior: React.FC = () => {
   const nav = useNavigate()
   const params = useParams<RouteParams>()
 
-  const { setId, level: storeLevel, hardReset,bootstrap } = useGame()
-  const urlLevelKey = params.levelKey || 'junior'
+  const { setId, level: storeLevel, hardReset, bootstrap } = useGame()
+  // 👇 Para esta pantalla asumimos 'senior' como default
+  const urlLevelKey = params.levelKey || 'senior'
   const levelKey = storeLevel || urlLevelKey
 
   const [loading, setLoading] = useState(false)
@@ -80,7 +81,7 @@ const Result: React.FC = () => {
 useEffect(() => {
   ;(async () => {
     try {
-      await bootstrap('junior')
+      await bootstrap('senior')
     } catch (e) {
       console.error("Error en bootstrap inicial:", e)
     }
@@ -153,7 +154,6 @@ useEffect(() => {
     const entries = Object.entries(data.byMentor || {})
     if (entries.length === 0) return null
 
-    // Ordenado por nombre para que se vea bonito
     const sorted = entries.sort(([, a], [, b]) =>
       a.name.localeCompare(b.name, 'es')
     )
@@ -235,28 +235,27 @@ useEffect(() => {
     )
   }
 
-  // 🔁 Volver al inicio reseteando el juego (elimina progreso del nivel)
-  const handleGoHome = async () => {
+  // 🔁 Eliminar progreso del nivel SENIOR y volver al Home_senior
+  const handleDeleteProgress = async () => {
     try {
-      await hardReset('junior')
+      await hardReset('senior')
     } catch (e) {
-      console.error('Error al hacer hardReset en Result:', e)
+      console.error('Error al hacer hardReset en Result_senior:', e)
     } finally {
-      nav('/')
+      nav('/home/senior')
     }
   }
 
   const handleBackToLevel = () => {
-    nav(`/level/${levelKey}`)
+    nav(`/level/${levelKey || 'senior'}`)
   }
-
   // ✅ Nuevo: pasar a nivel Senior cuando next_index === 21
   const canGoToSenior =
     !loading &&
     !error &&
     data &&
     data.set &&
-    data.set.level_key === 'junior' &&
+    data.set.level_key === 'senior' &&
     data.set.next_index === 21
 
   return (
@@ -275,8 +274,8 @@ useEffect(() => {
     >
       {/* Fondo */}
       <img
-        src={assets.bg.resultado}
-        alt="Fondo Resultado"
+        src={assets.bg.resultado_senior}
+        alt="Fondo Resultado Senior"
         style={{
           width: '100%',
           height: '100%',
@@ -315,7 +314,7 @@ useEffect(() => {
             }}
           >
             <h2 style={{ marginTop: 0, marginBottom: 8 }}>
-              Resultado del nivel
+              Resultado del nivel Senior
             </h2>
 
             {loading && (
@@ -369,6 +368,7 @@ useEffect(() => {
                   </span>
                 </div>
 
+
                 {/* Totales generales */}
                 <div style={{ marginTop: 14 }}>
                   <h3 style={{ margin: '0 0 6px 0' }}>Totales del set</h3>
@@ -416,13 +416,12 @@ useEffect(() => {
           style={{
             display: 'flex',
             justifyContent: 'center',
-            gap: 12,
-            flexWrap: 'wrap'
+            gap: 12
           }}
         >
-          {/* 🔥 Botón: Eliminar progreso del nivel */}
+          {/* 🔥 Eliminar progreso del nivel SENIOR */}
           <button
-            onClick={handleGoHome}
+            onClick={handleDeleteProgress}
             style={{
               minWidth: 200,
               padding: '10px 18px',
@@ -435,27 +434,26 @@ useEffect(() => {
 
           {/* 🔙 Volver al inicio SIN borrar progreso */}
           <button
-            onClick={() => nav('/')}
+            onClick={() => nav('/home/senior')}
             style={{ minWidth: 160, padding: '10px 18px' }}
           >
             Volver al inicio
           </button>
 
-          {/* 🔁 Volver al nivel */}
+          {/* 🔁 Volver al nivel SENIOR */}
           <button
             onClick={handleBackToLevel}
             style={{ minWidth: 160, padding: '10px 18px' }}
           >
             Volver al nivel
           </button>
-
-          {/* 🆙 Siguiente nivel: Senior (solo cuando next_index === 21 en junior) */}
+                    {/* 🆙 Siguiente nivel: Senior (solo cuando next_index === 21 en junior) */}
           {canGoToSenior && (
             <button
-              onClick={() => nav('/home/senior')}
+              onClick={() => nav('/home/master')}
               style={{ minWidth: 200, padding: '10px 18px' }}
             >
-              Siguiente nivel: Senior
+              Siguiente nivel: master
             </button>
           )}
         </div>
@@ -464,4 +462,4 @@ useEffect(() => {
   )
 }
 
-export default Result
+export default Result_senior

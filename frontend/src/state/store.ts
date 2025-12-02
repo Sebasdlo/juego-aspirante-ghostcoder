@@ -21,8 +21,9 @@ type StoreState = {
   // mentores cuyo set de 3 retos ya terminó
   completedMentors: string[]
 
-  // inicializa desde el backend (player_state + generated_set abierto)
-  bootstrap: () => Promise<void>
+  // inicializa desde el backend (player_state + generated_set abierto o último completado)
+  // ahora puede recibir levelKey opcional: 'junior' | 'senior' | 'master'
+  bootstrap: (levelKey?: string) => Promise<void>
 
   // flujo de retos por mentor
   loadMentorItem: (mentorName: string) => Promise<void>
@@ -49,11 +50,12 @@ export const useGame = create<StoreState>((set, get) => ({
   completedMentors: [],
 
   // Cargar estado inicial del jugador desde /Logica/player/state
-  bootstrap: async () => {
+  bootstrap: async (levelKey?: string) => {
     try {
       set({ loading: true, error: null })
 
-      const resp = await getPlayerState()
+      // 👇 AHORA: le pasamos el nivel (si viene)
+      const resp = await getPlayerState(levelKey)
 
       if (!resp?.ok) {
         set({
@@ -63,19 +65,29 @@ export const useGame = create<StoreState>((set, get) => ({
         return
       }
 
-      const openSet = (resp as any).openSet ?? null
-      const setId = openSet?.id ?? null
-      const levelKey = openSet?.level_key ?? 'junior'
-      const nextIndex = openSet?.next_index ?? 1
+      const anyResp = resp as any
 
-      // Estado anterior (por si no hay set abierto)
+      const openSet = anyResp.openSet ?? null
+      const lastCompletedSet = anyResp.lastCompletedSet ?? null
+
+      // 👇 Elegimos la “fuente” del set:
+      // 1) Primero el openSet si existe
+      // 2) Si no hay openSet, usamos lastCompletedSet (simulando set activo)
+      const baseSet = openSet || lastCompletedSet || null
+
+      const setId: string | null = baseSet?.id ?? null
+      // si no hay baseSet, usamos el levelKey pedido, o 'junior' por defecto
+      const derivedLevelKey: string = baseSet?.level_key ?? levelKey ?? 'junior'
+      const nextIndex: number = baseSet?.next_index ?? 1
+
+      // Estado anterior (por si no hay set asociado)
       const prevCompleted = get().completedMentors
 
-      // 🧠 Nueva lógica para completedMentors
+      // 🧠 Nueva lógica para completedMentors (igual que antes, pero usando setId)
       let completedMentors: string[] = []
 
       if (setId) {
-        // Hay un set abierto → intentamos leer su propio registro de mentores completados
+        // Hay algún set (abierto o completado reciente) → intentamos leer su registro
         if (typeof window !== 'undefined') {
           try {
             const raw = localStorage.getItem(`gc_completedMentors_${setId}`)
@@ -92,16 +104,14 @@ export const useGame = create<StoreState>((set, get) => ({
             )
           }
         }
-        // Si no hay nada en localStorage para ESTE set,
-        // dejamos completedMentors como [] (no heredamos del set anterior).
       } else {
-        // No hay set abierto → conservamos lo que hubiera en memoria
+        // No hay set asociado → conservamos lo que hubiera en memoria
         completedMentors = prevCompleted
       }
 
       set({
         setId,
-        level: levelKey,
+        level: derivedLevelKey,
         nextIndex,
         completedMentors,
         loading: false,
@@ -187,14 +197,14 @@ export const useGame = create<StoreState>((set, get) => ({
     }),
 
   hardReset: async (levelKey?: string) => {
-  const { setId } = get()
+    const { setId } = get()
 
-  if (typeof window !== 'undefined' && setId) {
-    localStorage.removeItem(`gc_completedMentors_${setId}`)
-  }
+    if (typeof window !== 'undefined' && setId) {
+      localStorage.removeItem(`gc_completedMentors_${setId}`)
+    }
 
-  await resetPlayer(levelKey)   // ✔️ ya NO falla
-  await get().bootstrap()
-},
-
+    await resetPlayer(levelKey)
+    // Después del reset volvemos a hacer bootstrap del mismo nivel (o global si no viene)
+    await get().bootstrap(levelKey)
+  },
 }))

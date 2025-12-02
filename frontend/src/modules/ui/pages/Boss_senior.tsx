@@ -1,6 +1,6 @@
-// pages/Boss.tsx
+// pages/Boss_senior.tsx
 import React, { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 
 import { assets } from '@scenes/assets/assets.manifest'
 import OptionButton from '@ui/components/OptionButton'
@@ -15,10 +15,6 @@ import {
   resetBossRun
 } from '@api/endpoints'
 
-type RouteParams = {
-  levelKey?: string
-}
-
 type OptionState = 'idle' | 'selected' | 'correct' | 'incorrect'
 
 const panelStyle: React.CSSProperties = {
@@ -30,11 +26,10 @@ const panelStyle: React.CSSProperties = {
 }
 
 const MAX_FAILS = 3
+const LEVEL_KEY = 'senior'
 
-const Boss: React.FC = () => {
+const Boss_senior: React.FC = () => {
   const nav = useNavigate()
-  const { levelKey: routeLevelKey } = useParams<RouteParams>()
-  const levelKey = routeLevelKey || 'junior'
 
   // 👇 usamos setId y bootstrap desde el store (SOLO UNA VEZ)
   const { setId, bootstrap } = useGame()
@@ -121,9 +116,9 @@ const Boss: React.FC = () => {
 
     const run = async () => {
       try {
-        await bootstrap('junior')
+        await bootstrap('senior')
       } catch (e) {
-        console.error('Error en bootstrap dentro de Boss:', e)
+        console.error('Error en bootstrap dentro de Boss_senior:', e)
       }
     }
 
@@ -136,7 +131,7 @@ const Boss: React.FC = () => {
 
     const run = async () => {
       try {
-        const resp = await getPlayerState('junior')
+        const resp = await getPlayerState('senior')
         if (!resp?.ok) {
           await loadBossQuestion(16, true)
           return
@@ -153,13 +148,13 @@ const Boss: React.FC = () => {
 
         await loadBossQuestion(startIndex, true)
       } catch (e) {
-        console.error('Error obteniendo player_state en Boss:', e)
+        console.error('Error obteniendo player_state en Boss_senior:', e)
         await loadBossQuestion(16, true)
       }
     }
 
     run()
-  }, [setId]) // 👈 solo depende de setId
+  }, [setId])
 
   const getState = (i: number): OptionState => {
     if (!hasOptions) return 'idle'
@@ -177,6 +172,7 @@ const Boss: React.FC = () => {
     }
     return 'idle'
   }
+
   const submitAnswer = async (answer: number) => {
     if (!setId || currentIndex == null) return
 
@@ -196,33 +192,30 @@ const Boss: React.FC = () => {
       if (!res.correct) {
         setLastWrongIndex(currentIndex)
 
-        setBossNextIndex(null) // no avanzamos al siguiente reto
+        setBossNextIndex(null)
 
         setFailCount(prev => {
           const next = prev + 1
           if (next >= MAX_FAILS) {
-            // 🔥 Alcanzó el máximo de fallos: evaluación fallida
             setFinished(true)
             setShowFailOverlay(true)
           }
           return next
         })
 
-        return // ⛔ NO miramos res.finished ni res.nextIndex en este caso
+        return
       }
 
       // 🔹 Si la respuesta es CORRECTA:
       if (res.finished) {
-        // ✅ Ya se respondió la última correcta (ej. la 20) y el set quedó en nextIndex 21
         setFinished(true)
         setBossNextIndex(null)
-        setShowCongrats(true) // 🔥 disparamos el mensaje de bienvenida a GhostCoder
+        setShowCongrats(true)
       } else if (typeof res.nextIndex === 'number') {
-        // ✅ Guardamos el next_index que maneja el SET en backend
         setBossNextIndex(res.nextIndex)
       }
     } catch (e: any) {
-      console.error('Error enviando respuesta del jefe:', e)
+      console.error('Error enviando respuesta del jefe (senior):', e)
       setError(e?.message || 'No se pudo enviar la respuesta del jefe')
     } finally {
       setLoading(false)
@@ -255,27 +248,23 @@ const Boss: React.FC = () => {
     await submitAnswer(first)
   }
 
-  // 🔁 Siguiente reto del jefe (sólo si fue correcta y backend mandó nextIndex)
   const handleNextBoss = () => {
     if (bossNextIndex != null && !finished) {
       loadBossQuestion(bossNextIndex, true)
     }
   }
 
-  // 🔁 Reintentar SÓLO la pregunta actual (cuando se equivocó una vez)
   const handleRetryQuestion = async () => {
     if (!setId || lastWrongIndex == null) return
     try {
       await resetBossQuestion(setId, lastWrongIndex)
-      // volvemos a cargar esa misma pregunta
       await loadBossQuestion(lastWrongIndex, true)
     } catch (e: any) {
-      console.error('Error al resetear intento de la pregunta del jefe:', e)
+      console.error('Error al resetear intento de la pregunta del jefe (senior):', e)
       setError(e?.message || 'No se pudo reintentar este reto del jefe')
     }
   }
 
-  // 🔁 Repetir TODA la evaluación del jefe (cuando llegó a 3 fallos)
   const handleRestartBossRun = async () => {
     if (!setId) return
     try {
@@ -284,7 +273,6 @@ const Boss: React.FC = () => {
 
       await resetBossRun(setId)
 
-      // Reseteamos estado local del boss
       setFailCount(0)
       setFinished(false)
       setShowFailOverlay(false)
@@ -296,10 +284,9 @@ const Boss: React.FC = () => {
       setExplanation(null)
       setLastWrongIndex(null)
 
-      // Volvemos a empezar desde la 16
       await loadBossQuestion(16, true)
     } catch (e: any) {
-      console.error('Error al resetear la evaluación del jefe:', e)
+      console.error('Error al resetear la evaluación del jefe (senior):', e)
       setError(
         e?.message ||
           'No se pudo reiniciar la evaluación del jefe. Intenta de nuevo.'
@@ -318,9 +305,10 @@ const Boss: React.FC = () => {
     try {
       await getSetSummary(setId)
     } catch (e) {
-      console.error('Error obteniendo resumen del set:', e)
+      console.error('Error obteniendo resumen del set (senior):', e)
     } finally {
-      nav('/result')
+      // 👇 OJO: resultado específico para senior
+      nav('/result/senior')
     }
   }
 
@@ -340,20 +328,19 @@ const Boss: React.FC = () => {
     >
       {/* Fondo */}
       <img
-        src={assets.bg.jefes}
-        alt="Fondo Boss"
+        src={assets.bg.jefes_senior}
+        alt="Fondo Boss Senior"
         style={{
           width: '100%',
           height: '100%',
           position: 'absolute',
           inset: 0,
-          objectFit: 'cover',
           objectPosition: 'center',
           filter: 'brightness(.9)'
         }}
       />
 
-      {/* Header fuera del grid */}
+      {/* Header */}
       <div
         style={{
           position: 'absolute',
@@ -372,7 +359,7 @@ const Boss: React.FC = () => {
             textShadow: '0 2px 6px rgba(0,0,0,.6)'
           }}
         >
-          Jefe del nivel
+          Jefe del nivel Senior
         </h2>
 
         <div
@@ -385,7 +372,7 @@ const Boss: React.FC = () => {
           }}
         >
           <img
-            src={assets.characters.boss}
+            src={assets.characters.boss_senior}
             alt="Jefe"
             style={{
               height: 64,
@@ -394,7 +381,7 @@ const Boss: React.FC = () => {
             }}
           />
           <div>
-            <strong>Ramírez, Jefe del nivel</strong>
+            <strong>Sebastian, Jefe del nivel</strong>
             <div style={{ fontSize: 12, opacity: 0.85 }}>
               {finished && showCongrats
                 ? 'Has completado el reto del jefe.'
@@ -402,7 +389,6 @@ const Boss: React.FC = () => {
                 ? `Reto del jefe · Pregunta ${currentIndex} de ${totalBoss}`
                 : 'Reto final del nivel'}
             </div>
-            {/* 🔹 Info de fallos */}
             <div style={{ fontSize: 11, opacity: 0.8, marginTop: 4 }}>
               Fallos: {failCount}/{MAX_FAILS}
             </div>
@@ -467,9 +453,7 @@ const Boss: React.FC = () => {
           }}
         >
           <p style={{ margin: 0 }}>
-            {isLoadingNext
-              ? 'Cargando siguiente reto del jefe…'
-              : narrativeText}
+            {isLoadingNext ? 'Cargando siguiente reto del jefe…' : narrativeText}
           </p>
         </div>
 
@@ -492,7 +476,7 @@ const Boss: React.FC = () => {
               return (
                 <OptionButton
                   key={index}
-                  label={String.fromCharCode(64 + index)} // 1→A, 2→B, 3→C, 4→D
+                  label={String.fromCharCode(64 + index)}
                   text={text}
                   state={getState(index)}
                   disabled={loading || finished}
@@ -512,8 +496,6 @@ const Boss: React.FC = () => {
             alignItems: 'end'
           }}
         >
-          {/* Siguiente reto del Boss (solo si ya respondiste CORRECTO
-              y el backend mandó nextIndex) */}
           {!finished &&
             answered &&
             !loading &&
@@ -522,7 +504,6 @@ const Boss: React.FC = () => {
               <button onClick={handleNextBoss}>Siguiente reto</button>
             )}
 
-          {/* Reintentar ESTE reto cuando está mal pero aún no llegó a 3 fallos */}
           {!finished &&
             answered &&
             !loading &&
@@ -534,13 +515,13 @@ const Boss: React.FC = () => {
               </button>
             )}
 
-          <button onClick={() => nav(`/level/${levelKey}`)}>
+          <button onClick={() => nav('/level/senior')}>
             Volver al nivel
           </button>
         </div>
       </div>
 
-      {/* Overlay de FELICITACIÓN final */}
+      {/* Overlay FELICITACIÓN */}
       {showCongrats && !showFailOverlay && (
         <div
           style={{
@@ -578,15 +559,15 @@ const Boss: React.FC = () => {
               }}
             >
               <img
-                src={assets.characters.boss}
-                alt="Ramírez, Jefe del nivel"
+                src={assets.characters.boss_senior}
+                alt="Sebastian, Jefe del nivel"
                 style={{
                   width: 96,
                   borderRadius: 16,
                   objectFit: 'cover'
                 }}
               />
-              <h3 style={{ margin: 0 }}>🏁 Evaluación del nivel superado </h3>
+              <h3 style={{ margin: 0 }}>🏁 Evaluación del nivel superado</h3>
             </div>
 
             <p
@@ -599,22 +580,22 @@ const Boss: React.FC = () => {
                 justifySelf: 'center'
               }}
             >
-              Has demostrado que tu lógica puede estar al nivel de las IA. Bienvenido a{' '}
-              GhostCoder.
+              Has demostrado que puedes mantener GhostNet estable bajo presión, 
+              interpretar fallas críticas y responder como un verdadero miembro del equipo Kernel.
               {'\n'}
-              Prepárate, porque lo que viene ya no será solo simulación: será la realidad.
+              Prepárate, vas a entrar al nivel master donde vas a estar a prueba por los lideres de GhostCoder.
             </p>
 
             <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
-            <button onClick={handleFinish}>
-              Ver resultado final del nivel
-            </button>
+              <button onClick={handleFinish}>
+                Ver resultado final del nivel
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 🔥 Overlay de EVALUACIÓN FALLIDA (3 fallos) */}
+      {/* Overlay EVALUACIÓN FALLIDA */}
       {showFailOverlay && (
         <div
           style={{
@@ -674,4 +655,4 @@ const Boss: React.FC = () => {
   )
 }
 
-export default Boss
+export default Boss_senior

@@ -29,7 +29,6 @@ export default function App() {
           borderRadius: 12,
           margin: '12px auto 0',
           padding: '10px 14px',
-          width: 'min(1200px, 96%)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',

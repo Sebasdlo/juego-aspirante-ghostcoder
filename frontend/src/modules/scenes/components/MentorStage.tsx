@@ -25,15 +25,15 @@ export default function MentorStage({
   onCharacterClick
 }: Props) {
   const layout = useMemo(() => {
-    const W = 960, H = 540
+    const W = 1000, H = 600
     return {
       baseW: W, baseH: H,
       spots: [
         { x: W * 0.50, y: H * 0.68 }, // centro
-        { x: W * 0.25, y: H * 0.62 }, // izquierda
-        { x: W * 0.75, y: H * 0.62 }, // derecha
-        { x: W * 0.37, y: H * 0.48 }, // arriba-izq
-        { x: W * 0.63, y: H * 0.48 }, // arriba-der
+        { x: W * 0.20, y: H * 0.62 }, // izquierda
+        { x: W * 0.80, y: H * 0.62 }, // derecha
+        { x: W * 0.35, y: H * 0.48 }, // arriba-izq
+        { x: W * 0.65, y: H * 0.48 }, // arriba-der
       ]
     }
   }, [])
@@ -99,7 +99,7 @@ export default function MentorStage({
             <img
               src={c.src}
               alt={c.name}
-              style={{ width: 120, height: 120, borderRadius: 12, objectFit: 'contain' }}
+              style={{ width: 200, height: 200, borderRadius: 12, objectFit: 'contain' }}
               draggable={false}
             />
             <div style={{

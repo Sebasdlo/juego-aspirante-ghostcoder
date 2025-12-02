@@ -25,37 +25,38 @@ type PromptTemplateRow = {
   template_text: string
   constraints_json: any | null
 }
-
-/**
- * Limpia el contenido devuelto por el modelo, por si llega envuelto en ```json ... ``` u otros formatos.
- */
 function cleanModelContent(raw: string | null | undefined): string {
   if (!raw) return '[]'
 
   let text = raw.trim()
 
-  // Manejar bloques de código markdown tipo ```json ... ``` o ``` ...
+  // Quitar fences ```json ... ``` o ``` ... ```
   if (text.startsWith('```')) {
     const lines = text.split('\n')
-    if (lines[0].startsWith('```')) {
-      lines.shift()
-    }
-    if (lines.length && lines[lines.length - 1].startsWith('```')) {
-      lines.pop()
-    }
+    if (lines[0].startsWith('```')) lines.shift()
+    if (lines.length && lines[lines.length - 1].startsWith('```')) lines.pop()
     text = lines.join('\n').trim()
   }
 
-  // 🔧 Extra: si el modelo devolvió texto alrededor del JSON,
-  // nos quedamos solo con el PRIMER array que aparezca.
+  // Quedarnos solo con el PRIMER array que aparezca
   const firstBracket = text.indexOf('[')
   const lastBracket = text.lastIndexOf(']')
   if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
     text = text.slice(firstBracket, lastBracket + 1).trim()
   }
 
+  // Normalizar saltos de línea y tabs → espacios (todo en una sola línea)
+  text = text.replace(/\r\n/g, '\n')
+  text = text.replace(/\r/g, '\n')
+  text = text.replace(/\n/g, ' ')
+  text = text.replace(/\t/g, ' ')
+
+  // Compactar espacios múltiples
+  text = text.replace(/\s{2,}/g, ' ')
+
   return text
 }
+
 
 /**
  * Intenta parsear JSON de forma tolerante:
@@ -66,12 +67,10 @@ function safeParseJson(cleaned: string): any {
   try {
     return JSON.parse(cleaned)
   } catch (e1: any) {
-    // Intento de reparación: quitar comas colgantes tipo "..., ]" o "..., }"
     const fixed = cleaned.replace(/,\s*([\]}])/g, '$1')
     try {
       return JSON.parse(fixed)
     } catch (e2: any) {
-      // Si tampoco se puede, devolvemos el error original pero dejando claro que ya intentamos reparar
       throw new Error(
         `No se pudo parsear el JSON devuelto por la IA: ${e1?.message || 'Error de parseo'}`
       )
@@ -108,10 +107,7 @@ async function loadAllowedMentors(levelKey: string): Promise<string[]> {
 
   return mentors
 }
-/**
- * Valida y normaliza el array de items devuelto por la IA.
- * Lanza Error si la estructura no es válida.
- */
+
 async function validateAndNormalizeItems(
   levelKey: string,
   data: any
@@ -196,7 +192,9 @@ async function validateAndNormalizeItems(
       // main / random deben tener mentorName válido para ESTE nivel
       if (typeof mentorName !== 'string' || !allowedMentors.includes(mentorName)) {
         throw new Error(
-          `El reto ${idx + 1} tiene "mentorName" inválido: ${String(mentorName)}`
+          `El reto ${idx + 1} tiene "mentorName" inválido para el nivel "${levelKey}": ${String(
+            mentorName
+          )}`
         )
       }
       normMentor = mentorName as string
@@ -214,22 +212,8 @@ async function validateAndNormalizeItems(
     return { idx, item }
   })
 
-  // 👉 Para niveles que NO sean "junior", nos quedamos con los primeros 20 normalizados
-  // y listo (sin distribución especial).
-  if (levelKey !== 'junior') {
-    let items = normalized.map(n => n.item)
-    if (items.length > 20) {
-      console.warn(
-        `Advertencia: se esperaban 20 retos, pero llegaron ${items.length}. ` +
-          'Se tomarán SOLO los primeros 20 para niveles no-junior.'
-      )
-      items = items.slice(0, 20)
-    }
-    return items
-  }
-
   // -------------------------------------------------------
-  // 🔥 LÓGICA ESPECIAL PARA LEVEL "junior"
+  // 🔥 LÓGICA ESPECIAL PARA TODOS LOS NIVELES
   // -------------------------------------------------------
 
   // 2) Seleccionar exactamente 5 BOSS desde TODOS los ítems
@@ -237,7 +221,7 @@ async function validateAndNormalizeItems(
 
   if (bossesAll.length < 5) {
     throw new Error(
-      `Para el nivel junior se esperan 5 retos "boss" y llegaron ${bossesAll.length}`
+      `Para el nivel "${levelKey}" se esperan 5 retos "boss" y llegaron ${bossesAll.length}`
     )
   }
 
@@ -258,7 +242,7 @@ async function validateAndNormalizeItems(
 
     if (mains.length < 2 || randoms.length < 1) {
       throw new Error(
-        `Para el mentor ${mentor} se requieren al menos 2 main + 1 random, ` +
+        `Para el mentor "${mentor}" en el nivel "${levelKey}" se requieren al menos 2 main + 1 random, ` +
           `pero se encontraron main=${mains.length}, random=${randoms.length}`
       )
     }
@@ -267,12 +251,21 @@ async function validateAndNormalizeItems(
     selectedMentorItems.push(mains[0], mains[1], randoms[0])
   }
 
-  // 4) Unimos: 5 boss + (5 mentores × 3 retos) = 20
+  // 4) Unimos: 5 boss + (mentores × 3 retos)
   const combined: WithIndex[] = [...selectedBosses, ...selectedMentorItems]
 
-  if (combined.length !== 20) {
+  const expectedTotal = 5 + allowedMentors.length * 3
+  if (combined.length !== expectedTotal) {
     throw new Error(
-      `Error interno al reconstruir los retos: se esperaban 20 y quedaron ${combined.length}`
+      `Error interno al reconstruir los retos para "${levelKey}": ` +
+        `se esperaban ${expectedTotal} y quedaron ${combined.length}`
+    )
+  }
+
+  if (expectedTotal !== 20) {
+    console.warn(
+      `Advertencia: la distribución para "${levelKey}" no suma 20 retos (esperados 20, calculados ${expectedTotal}). ` +
+        'Revisa el número de mentores configurados en level_character.'
     )
   }
 
@@ -287,7 +280,8 @@ async function validateAndNormalizeItems(
 
   if (countMain !== 10 || countRandom !== 5 || countBoss !== 5) {
     throw new Error(
-      `Distribución inválida tras reconstrucción: main=${countMain}, random=${countRandom}, boss=${countBoss}`
+      `Distribución inválida tras reconstrucción para "${levelKey}": ` +
+        `main=${countMain}, random=${countRandom}, boss=${countBoss} (deben ser 10, 5, 5)`
     )
   }
 
@@ -298,7 +292,7 @@ async function validateAndNormalizeItems(
 
     if (mains !== 2 || randoms !== 1) {
       throw new Error(
-        `Distribución incorrecta para ${mentor} tras reconstrucción: ` +
+        `Distribución incorrecta para "${mentor}" en "${levelKey}" tras reconstrucción: ` +
           `main=${mains}, random=${randoms} (deben ser 2 main + 1 random)`
       )
     }
@@ -306,6 +300,7 @@ async function validateAndNormalizeItems(
 
   return finalItems
 }
+
 
 /**
  * Carga el prompt_template desde Supabase para un level dado.
@@ -382,7 +377,7 @@ export async function generateItemsForLevel(
           body: JSON.stringify({
             model,
             temperature: 0.4,
-            max_tokens: 2500,
+            max_tokens: 3000,
             messages: [
               { role: 'system', content: systemMessage },
               { role: 'user', content: userMessage }

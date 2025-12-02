@@ -65,8 +65,8 @@ function extractTitle(source: any): string | undefined {
 
 const Home: React.FC = () => {
   const nav = useNavigate()
-  const { setId, bootstrap, hardReset } = useGame()
-
+  const { setId, level , bootstrap, hardReset } = useGame()
+  const hasSeniorOpen = !!setId && level === 'senior'
   const [status, setStatus] = useState('Comprobando API…')
   const [loading, setLoading] = useState(false)
 
@@ -86,7 +86,7 @@ const Home: React.FC = () => {
 
     const boot = async () => {
       try {
-        await Promise.all([healthz(), bootstrap()])
+        await Promise.all([healthz(), bootstrap('junior')])
         if (!cancelled) setStatus('API lista ✔')
       } catch {
         if (!cancelled) setStatus('Error conectando con la API ❌')
@@ -201,240 +201,256 @@ const Home: React.FC = () => {
   const canClickContinue =
     !introLoading && !introError && (!isLastStep || startReady)
 
-  return (
-    <div
-      className="card"
+return (
+  <div
+    className="card"
+    style={{
+      position: 'relative',
+      overflow: 'hidden',
+      width: '100%',
+      maxWidth: '1400px',
+      margin: '0 auto',
+      aspectRatio: '16 / 9',
+      background: 'black',
+      borderRadius: 16
+    }}
+  >
+    {/* Fondo */}
+    <img
+      src={assets.bg.inicio}
+      alt="Inicio"
       style={{
-        position: 'relative',
-        overflow: 'hidden',
         width: '100%',
-        maxWidth: '1400px',
-        margin: '0 auto',
-        aspectRatio: '16 / 9',
-        background: 'black',
-        borderRadius: 16
+        height: '100%',
+        position: 'absolute',
+        inset: 0,
+        objectPosition: 'center'
+      }}
+    />
+
+    {/* Status superior */}
+    <div
+      style={{
+        position: 'absolute',
+        top: 24,
+        left: 0,
+        right: 0,
+        textAlign: 'center',
+        zIndex: 2
       }}
     >
-      {/* Fondo */}
-      <img
-        src={assets.bg.inicio}
-        alt="Inicio"
+      <h2 style={{ margin: 0 }}>Inicio · Nivel Junior</h2>
+      <p style={{ marginTop: 6 }}>{status}</p>
+    </div>
+
+    {/* Botonera */}
+    <div
+      style={{
+        position: 'absolute',
+        bottom: 20,
+        left: 0,
+        right: 0,
+        zIndex: 2,
+        display: 'flex',
+        gap: 12,
+        justifyContent: 'center',
+        flexWrap: 'wrap'
+      }}
+    >
+
+      {/* ✔ Comenzar nivel Junior (solo si NO hay set) */}
+      {!setId && !loading && (
+        <button
+          onClick={handleStart}
+          style={{ minWidth: 180, padding: '10px 18px' }}
+        >
+          Comenzar nivel Junior
+        </button>
+      )}
+
+      {/* ✔ Continuar Junior solo si hay set Junior */}
+      {setId && !loading && (
+        <button
+          onClick={() => nav(`/level/${LEVEL_KEY}`)}
+          style={{ minWidth: 140, padding: '10px 18px' }}
+        >
+          Continuar nivel Junior
+        </button>
+      )}
+
+      {/* ✔ Eliminar progreso del nivel Junior */}
+      {setId && (
+        <button
+          onClick={handleDeleteProgress}
+          style={{ minWidth: 160, padding: '10px 18px' }}
+          disabled={loading}
+        >
+          {loading ? 'Eliminando…' : 'Eliminar progreso'}
+        </button>
+      )}
+
+      {/* 🌟 NUEVO: Continuar Senior solo si existe set en senior */}
+      {!hasSeniorOpen && !loading && (
+        <button
+          onClick={() => nav('/home/senior')}
+          style={{ minWidth: 180, padding: '10px 18px' }}
+        >
+          Continuar nivel Senior
+        </button>
+      )}
+    </div>
+
+    {/* Overlay INTRO */}
+    {showIntro && (
+      <div
         style={{
-          width: '100%',
-          height: '100%',
           position: 'absolute',
           inset: 0,
-          objectPosition: 'center'
+          zIndex: 10,
+          background: 'rgba(0,0,0,.55)',
+          display: 'grid',
+          placeItems: 'center',
+          padding: 24
         }}
-      />
-
-      {/* Status superior */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 24,
-          left: 0,
-          right: 0,
-          textAlign: 'center',
-          zIndex: 2
-        }}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Introducción del nivel"
       >
-        <h2 style={{ margin: 0 }}>Inicio · Nivel Junior</h2>
-        <p style={{ marginTop: 6 }}>{status}</p>
-      </div>
-
-      {/* Botonera */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 20,
-          left: 0,
-          right: 0,
-          zIndex: 2,
-          display: 'flex',
-          gap: 12,
-          justifyContent: 'center',
-          flexWrap: 'wrap'
-        }}
-      >
-        {/* SOLO si NO hay set y NO estás eliminando */}
-        {!setId && !loading && (
-          <button
-            onClick={handleStart}
-            style={{ minWidth: 180, padding: '10px 18px' }}
-          >
-            Comenzar nivel Junior
-          </button>
-        )}
-
-        {/* SOLO si hay set y NO está eliminando */}
-        {setId && !loading && (
-          <button
-            onClick={() => nav(`/level/${LEVEL_KEY}`)}
-            style={{ minWidth: 140, padding: '10px 18px' }}
-          >
-            Continuar nivel Junior
-          </button>
-        )}
-
-        {/* Siempre aparece si hay set (loading cambia texto y bloquea botones) */}
-        {setId && (
-          <button
-            onClick={handleDeleteProgress}
-            style={{ minWidth: 160, padding: '10px 18px' }}
-            disabled={loading}
-          >
-            {loading ? 'Eliminando…' : 'Eliminar progreso'}
-          </button>
-        )}
-      </div>
-
-      {/* Overlay INTRO */}
-      {showIntro && (
         <div
+          className="card"
           style={{
-            position: 'absolute',
-            inset: 0,
-            zIndex: 10,
-            background: 'rgba(0,0,0,.55)',
+            width: 'min(980px, 94%)',
+            background: 'rgba(0,0,0,0.95)',
+            border: '1px solid rgba(255,255,255,.2)',
+            borderRadius: 12,
+            padding: 20,
             display: 'grid',
-            placeItems: 'center',
-            padding: 24
+            gap: 14
           }}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Introducción del nivel"
         >
+          {introSteps[introIndex]?.img && (
+            <div
+              className="card"
+              style={{ overflow: 'hidden', borderRadius: 12, padding: 0 }}
+            >
+              <img
+                src={introSteps[introIndex].img}
+                alt="Escena"
+                style={{ width: '100%', height: 'auto', display: 'block' }}
+              />
+            </div>
+          )}
+
           <div
-            className="card"
             style={{
-              width: 'min(980px, 94%)',
-              background: 'rgba(0,0,0,.6)',
-              border: '1px solid rgba(255,255,255,.2)',
-              borderRadius: 12,
-              padding: 20,
-              display: 'grid',
-              gap: 14
+              lineHeight: 1.45,
+              fontSize: '0.88rem',
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '100%'
             }}
           >
-            {introSteps[introIndex]?.img && (
-              <div
-                className="card"
-                style={{ overflow: 'hidden', borderRadius: 12, padding: 0 }}
-              >
-                <img
-                  src={introSteps[introIndex].img}
-                  alt="Escena"
-                  style={{ width: '100%', height: 'auto', display: 'block' }}
-                />
-              </div>
+            {introLoading && <p>Cargando introducción…</p>}
+            {introError && (
+              <p style={{ color: '#ffd3d3' }}>{introError}</p>
             )}
-
-            <div
-              style={{
-                lineHeight: 1.45,
-                fontSize: '0.88rem',
-                textAlign: 'center',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '100%'
-              }}
-            >
-              {introLoading && <p>Cargando introducción…</p>}
-              {introError && <p style={{ color: '#ffd3d3' }}>{introError}</p>}
-              {!introLoading && !introError && (
-                <>
-                  {introSteps[introIndex]?.title && (
-                    <h3
-                      style={{
-                        margin: '0 0 8px 0',
-                        textAlign: 'center',
-                        width: '100%'
-                      }}
-                    >
-                      {introSteps[introIndex].title}
-                    </h3>
-                  )}
-                  <p
+            {!introLoading && !introError && (
+              <>
+                {introSteps[introIndex]?.title && (
+                  <h3
                     style={{
-                      margin: 0,
-                      whiteSpace: 'pre-line',
-                      maxWidth: '90%',
-                      textAlign: 'center'
+                      margin: '0 0 8px 0',
+                      textAlign: 'center',
+                      width: '100%'
                     }}
                   >
-                    {introSteps[introIndex]?.text}
-                  </p>
-
-                  {/* Mensaje dinámico cuando /start está procesando o ya terminó */}
-                  {isLastStep && (
-                    <>
-                      {!startReady && (
-                        <p
-                          style={{
-                            marginTop: 12,
-                            fontSize: '0.85rem',
-                            opacity: 0.9
-                          }}
-                        >
-                          Generando simulación… espera unos segundos más.
-                        </p>
-                      )}
-
-                      {startReady && (
-                        <p
-                          style={{
-                            marginTop: 12,
-                            fontSize: '0.9rem',
-                            fontWeight: 'bold',
-                            color: '#baffc9',
-                            textShadow: '0 0 4px #55ff99'
-                          }}
-                        >
-                          ✔ Simulación completa — ¡Todo listo para continuar!
-                        </p>
-                      )}
-                    </>
-                  )}
-                </>
-              )}
-            </div>
-
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginTop: 6
-              }}
-            >
-              <span style={{ fontSize: 12, opacity: 0.9 }}>
-                Escena {introIndex + 1} de {introSteps.length}
-              </span>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {!introLoading && !introError && (
-                  <button
-                    onClick={nextIntro}
-                    style={{
-                      minWidth: 160,
-                      padding: '10px 18px',
-                      opacity: canClickContinue ? 1 : 0.6,
-                      cursor: canClickContinue ? 'pointer' : 'not-allowed'
-                    }}
-                    disabled={!canClickContinue}
-                  >
-                    {isLastStep ? 'Continuar' : 'Siguiente'}
-                  </button>
+                    {introSteps[introIndex].title}
+                  </h3>
                 )}
-              </div>
+
+                <p
+                  style={{
+                    margin: 0,
+                    whiteSpace: 'pre-line',
+                    maxWidth: '90%',
+                    textAlign: 'center'
+                  }}
+                >
+                  {introSteps[introIndex]?.text}
+                </p>
+
+                {isLastStep && (
+                  <>
+                    {!startReady && (
+                      <p
+                        style={{
+                          marginTop: 12,
+                          fontSize: '0.85rem',
+                          opacity: 0.9
+                        }}
+                      >
+                        Generando simulación… espera unos segundos más.
+                      </p>
+                    )}
+
+                    {startReady && (
+                      <p
+                        style={{
+                          marginTop: 12,
+                          fontSize: '0.9rem',
+                          fontWeight: 'bold',
+                          color: '#baffc9',
+                          textShadow: '0 0 4px #55ff99'
+                        }}
+                      >
+                        ✔ Simulación completa — ¡Todo listo para continuar!
+                      </p>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Controles de navegación */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginTop: 6
+            }}
+          >
+            <span style={{ fontSize: 12, opacity: 0.9 }}>
+              Escena {introIndex + 1} de {introSteps.length}
+            </span>
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              {!introLoading && !introError && (
+                <button
+                  onClick={nextIntro}
+                  style={{
+                    minWidth: 160,
+                    padding: '10px 18px',
+                    opacity: canClickContinue ? 1 : 0.6,
+                    cursor: canClickContinue ? 'pointer' : 'not-allowed'
+                  }}
+                  disabled={!canClickContinue}
+                >
+                  {isLastStep ? 'Continuar' : 'Siguiente'}
+                </button>
+              )}
             </div>
           </div>
         </div>
-      )}
-    </div>
-  )
+      </div>
+    )}
+  </div>
+)
+
 }
 
 export default Home

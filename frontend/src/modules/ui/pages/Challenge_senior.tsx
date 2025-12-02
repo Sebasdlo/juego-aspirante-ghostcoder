@@ -1,4 +1,4 @@
-// pages/Challenger.tsx
+// pages/Challenge_senior.tsx
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { assets } from '@scenes/assets/assets.manifest'
@@ -7,7 +7,6 @@ import { useGame } from '@state/store'
 import { getMentorNextItem, answerMentorItem } from '@api/endpoints'
 
 type RouteParams = {
-  levelKey?: string
   mentorKey?: string
 }
 
@@ -31,44 +30,46 @@ const panelStyle: React.CSSProperties = {
 const mentorsMap = (
   characters: typeof assets.characters
 ): Record<string, MentorMeta> => ({
-  camila: {
-    key: 'camila',
-    name: 'Camila (back-end)',
-    backendName: 'Camila',
-    src: characters.camila
+  rafael: {
+  key: 'rafael',
+  name: 'rafael (sistemas distribuidos)',
+  backendName: 'Rafael',
+  src: characters.rafael
   },
-  hernan: {
-    key: 'hernan',
-    name: 'Hernán (automatización)',
-    backendName: 'Hernán',
-    src: characters.hernan
+  clara: {
+    key: 'clara',
+    name: 'clara (ciberseguridad)',
+    backendName: 'Clara',
+    src: characters.clara
   },
-  sofia: {
-    key: 'sofia',
-    name: 'Sofía (soluciones)',
-    backendName: 'Sofía',
-    src: characters.sofia
+  elian: {
+    key: 'elian',
+    name: 'Elián (software)',
+    backendName: 'Elián',
+    src: characters.elian
   },
-  diego: {
-    key: 'diego',
-    name: 'Diego (seguridad)',
-    backendName: 'Diego',
-    src: characters.diego
+  adriana: {
+    key: 'adriana',
+    name: 'Adriana (ing. de datos)',
+    backendName: 'Adriana',
+    src: characters.adriana
   },
-  lucia: {
-    key: 'lucia',
-    name: 'Lucía (datos)',
-    backendName: 'Lucía',
-    src: characters.lucia
+  tania: {
+    key: 'tania',
+    name: 'Tania (ing. de rendimiento)',
+    backendName: 'Tania',
+    src: characters.tania
   }
 })
 
-const Challenger: React.FC = () => {
+const Challenge_senior: React.FC = () => {
   const nav = useNavigate()
-  const { levelKey: routeLevelKey, mentorKey } = useParams<RouteParams>()
-  const levelKey = routeLevelKey || 'junior'
+  const { mentorKey } = useParams<RouteParams>()
 
-  const { setId, markMentorCompleted } = useGame()
+  // 🔥 Nivel fijo
+  const levelKey = 'senior'
+
+  const { setId, markMentorCompleted, bootstrap } = useGame()
 
   const allMentors = useMemo(() => mentorsMap(assets.characters), [])
   const mentor = mentorKey ? allMentors[mentorKey] : undefined
@@ -89,13 +90,13 @@ const Challenger: React.FC = () => {
   const [remainingForMentor, setRemainingForMentor] = useState<number[]>([])
   const [finishedForMentor, setFinishedForMentor] = useState(false)
 
-  // 🔹 Nuevo: intro cuando el reto es random
   const [showRandomIntro, setShowRandomIntro] = useState(false)
 
   const randomMode = kind === 'random'
+  const hasOptions = options.length > 0
   const randomLeft = remainingForMentor.length
   const mainLeft = remainingForMentor.length
-  const hasOptions = options.length > 0
+
   const displayOptions = isLoadingNext
     ? [
         'Cargando respuesta A…',
@@ -104,29 +105,36 @@ const Challenger: React.FC = () => {
         'Cargando respuesta D…'
       ]
     : options
+
   const narrativeText = finishedForMentor
     ? 'No quedan más retos para este mentor. Vuelve al nivel y elige otro mentor o ve al Boss.'
     : (question || 'Cargando reto…')
 
-  // Redirecciones básicas
-  useEffect(() => {
-    if (!setId) {
-      nav('/')
-      return
-    }
-    if (!mentor) {
-      nav(`/level/${levelKey}`)
-    }
-  }, [setId, mentor, nav, levelKey])
 
-  // función para cargar el siguiente reto de este mentor
+  // ============================
+// 🔄 Rehidratar estado al entrar / recargar
+// ============================
+useEffect(() => {
+  // 1) Si no hay mentor válido en la URL, volver al selector de nivel
+  if (!mentor) {
+    nav(`/level/${levelKey}`)
+    return
+  }
+
+  // 2) Si no hay setId (por ejemplo al recargar), pedirlo al backend
+  if (!setId) {
+    bootstrap()
+  }
+}, [setId, mentor, nav, levelKey, bootstrap])
+
+  // ============================
+  // Cargar el reto
+  // ============================
   const loadNextQuestion = async (fromButton: boolean) => {
     if (!setId || !mentor) return
     if (finishedForMentor) return
 
-    if (fromButton) {
-      setIsLoadingNext(true) // solo cuando viene del botón
-    }
+    if (fromButton) setIsLoadingNext(true)
 
     setLoading(true)
     setError(null)
@@ -139,29 +147,21 @@ const Challenger: React.FC = () => {
       const data = await getMentorNextItem(setId, mentor.backendName)
       const anyData = data as any
 
-      // 👇 Si el backend indica que este mentor ya terminó
       if (anyData?.finishedForMentor) {
         setFinishedForMentor(true)
         setQuestion('')
         setOptions([])
 
-        if (mentorKey) {
-          markMentorCompleted(mentorKey)
-        }
-
+        if (mentorKey) markMentorCompleted(mentorKey)
         return
       }
 
-      // Caso normal: el backend devuelve un ítem
       setQuestion(anyData.question || '')
       setOptions(Array.isArray(anyData.options) ? anyData.options : [])
       setKind(anyData.kind)
       setCurrentIndex(anyData.index ?? null)
 
-      // 🔹 Si el reto es random, mostramos el “evento inesperado”
-      if (anyData.kind === 'random') {
-        setShowRandomIntro(true)
-      }
+      if (anyData.kind === 'random') setShowRandomIntro(true)
     } catch (e: any) {
       console.error('Error cargando reto del mentor:', e)
       setError(e?.message || 'No se pudo cargar el reto del mentor')
@@ -171,19 +171,16 @@ const Challenger: React.FC = () => {
     }
   }
 
-  // cargar la primera pregunta al entrar
   useEffect(() => {
     setFinishedForMentor(false)
-    setShowRandomIntro(false) // por si vienes de otro mentor
+    setShowRandomIntro(false)
     loadNextQuestion(false)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setId, mentorKey])
 
   const getState = (i: number): OptionState => {
     if (!hasOptions) return 'idle'
-    if (!answered) {
-      return selectedIndex === i ? 'selected' : 'idle'
-    }
+    if (!answered) return selectedIndex === i ? 'selected' : 'idle'
+
     if (answered && selectedIndex === i) {
       if (wasCorrect === true) return 'correct'
       if (wasCorrect === false) return 'incorrect'
@@ -236,7 +233,7 @@ const forceFinishMentor = () => {
   if (mentorKey) markMentorCompleted(mentorKey)
 }
 
-  const isMultiple = false
+
   const randomLabel = randomMode ? 'RETO ALEATORIO' : 'RETO ACTUAL'
 
   return (
@@ -255,7 +252,7 @@ const forceFinishMentor = () => {
     >
       {/* Fondo */}
       <img
-        src={assets.bg.reto}
+        src={assets.bg.reto_senior}
         alt="Fondo Reto"
         style={{
           width: '100%',
@@ -447,7 +444,8 @@ const forceFinishMentor = () => {
                 <button>Volver</button>
               </Link>
             )}
-              {!finishedForMentor && randomMode && answered && !loading && (
+            {/* 👉 En randomMode permitimos "Siguiente reto" aunque finishedForMentor sea true */}
+            {!finishedForMentor && randomMode && answered && !loading && (
               <button onClick={forceFinishMentor}>
                 Terminar evento inesperado
               </button>
@@ -501,7 +499,7 @@ const forceFinishMentor = () => {
               {'\n'}
               Mantén la calma, piensa rápido y demuestra cómo reaccionas ante lo imprevisto.
             </p>
-            
+
             <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
               <button
                 onClick={() => setShowRandomIntro(false)}
@@ -517,4 +515,4 @@ const forceFinishMentor = () => {
   )
 }
 
-export default Challenger
+export default Challenge_senior

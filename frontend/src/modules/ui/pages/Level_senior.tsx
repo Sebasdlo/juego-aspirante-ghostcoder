@@ -1,6 +1,6 @@
-// pages/Level.tsx
+// pages/Level_senior.tsx
 import React, { useEffect, useState, useCallback } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 
 import { assets } from '@scenes/assets/assets.manifest'
 import MentorStage from '@scenes/components/MentorStage'
@@ -19,21 +19,17 @@ type Progress = {
   score: number
 }
 
-const Level: React.FC = () => {
+const Level_senior: React.FC = () => {
   const nav = useNavigate()
-  const params = useParams<{ levelKey: string }>()
-  const urlLevelKey = params.levelKey || 'junior'
 
-  const game = useGame()
   const {
     setId: storeSetId,
-    level: storeLevel,
     completedMentors,
     bootstrap,
     hardReset
-  } = game
+  } = useGame()
 
-  const effectiveLevelKey = storeLevel || urlLevelKey
+  const effectiveLevelKey = 'senior'
   const effectiveSetId = storeSetId
 
   const [canFightBoss, setCanFightBoss] = useState(false)
@@ -46,20 +42,20 @@ const Level: React.FC = () => {
   // Si entramos directo al level (o recargamos) y no hay setId, intentamos bootstrap
   useEffect(() => {
     if (!storeSetId) {
-      bootstrap('junior')
+      bootstrap('senior')
     }
   }, [storeSetId, bootstrap])
 
   // Precarga de imágenes
   useEffect(() => {
     const urls = [
-      assets.bg.mentor,
-      assets.characters.camila,
-      assets.characters.hernan,
-      assets.characters.sofia,
-      assets.characters.diego,
-      assets.characters.lucia,
-      assets.characters.boss
+      assets.bg.mentor_senior,
+      assets.characters.adriana,
+      assets.characters.clara,
+      assets.characters.elian,
+      assets.characters.rafael,
+      assets.characters.tania,
+      assets.characters.boss_senior
     ].filter(Boolean)
 
     urls.forEach(src => {
@@ -92,7 +88,7 @@ const Level: React.FC = () => {
       const eligible = !!anyResp.eligible
       setCanFightBoss(eligible)
     } catch (e) {
-      console.error('Error obteniendo elegibilidad Boss:', e)
+      console.error('Error obteniendo elegibilidad Boss (senior):', e)
     }
   }, [effectiveSetId])
 
@@ -147,9 +143,9 @@ const Level: React.FC = () => {
       await unlockBoss(effectiveSetId)
       setCanFightBoss(true)
       setMsg('Jefe desbloqueado. ¡Vamos!')
-      nav(`/boss/${effectiveLevelKey}`)
+      nav(`/boss/${effectiveLevelKey}`) // 👉 /boss/senior
     } catch (e: any) {
-      console.error('Error al ir al Boss:', e)
+      console.error('Error al ir al Boss (senior):', e)
       setMsg(
         e?.message ||
           'No se pudo verificar o desbloquear al jefe. Intenta de nuevo.'
@@ -173,7 +169,7 @@ const Level: React.FC = () => {
       }
 
       setMsg('Cargando reto del mentor...')
-      nav(`/challenge/${effectiveLevelKey}/${mentorKey}`)
+      nav(`/challenge/${effectiveLevelKey}/${mentorKey}`) // 👉 /challenge/senior/:mentorKey
     } catch (e: any) {
       console.error(e)
       setMsg(e?.message || 'No se pudo cargar el reto del mentor.')
@@ -182,11 +178,11 @@ const Level: React.FC = () => {
 
   const handleGoHome = async () => {
     try {
-      await hardReset('junior')
+      await hardReset('senior')
     } catch (e) {
-      console.error('Error al hacer hardReset en Level:', e)
+      console.error('Error al hacer hardReset en Level_senior:', e)
     } finally {
-      nav('/')
+      nav('/home/senior')
     }
   }
 
@@ -225,7 +221,7 @@ const Level: React.FC = () => {
         }
       } catch (e) {
         console.error(
-          'Error evaluando elegibilidad del Boss al terminar mentores:',
+          'Error evaluando elegibilidad del Boss (senior) al terminar mentores:',
           e
         )
       }
@@ -250,7 +246,7 @@ const Level: React.FC = () => {
     >
       {/* Fondo */}
       <img
-        src={assets.bg.mentor}
+        src={assets.bg.mentor_senior}
         alt="Fondo Mentor"
         style={{
           width: '100%',
@@ -265,13 +261,13 @@ const Level: React.FC = () => {
       {/* Mentores */}
       <div style={{ position: 'absolute', inset: 0, zIndex: 2 }}>
         <MentorStage
-          bg={assets.bg.mentor}
+          bg={assets.bg.mentor_senior}
           characters={[
-            { key: 'camila', name: 'Camila (back-end)', src: assets.characters.camila },
-            { key: 'hernan', name: 'Hernán (automatización)', src: assets.characters.hernan },
-            { key: 'sofia',  name: 'Sofía (soluciones)',    src: assets.characters.sofia },
-            { key: 'diego',  name: 'Diego (seguridad)',      src: assets.characters.diego },
-            { key: 'lucia',  name: 'Lucía (datos)',          src: assets.characters.lucia }
+            { key: 'adriana',name: 'Adriana (ing. de datos)',src: assets.characters.adriana },
+            { key: 'clara',  name: 'clara (ciberseguridad)', src: assets.characters.clara },
+            { key: 'elian',  name: 'Elián (software)',       src: assets.characters.elian },
+            { key: 'tania',  name: 'Tania (ing. de rendimiento)', src: assets.characters.tania },
+            { key: 'rafael', name: 'Rafael (sistemas distribuidos)',src: assets.characters.rafael }
           ]}
           onCharacterClick={handleCharacterClick}
         />
@@ -290,13 +286,13 @@ const Level: React.FC = () => {
         }}
       >
         <img
-          src={assets.characters.boss}
+          src={assets.characters.boss_senior}
           alt="Jefe del nivel"
           style={{ width: 200, height: 200, borderRadius: 12 }}
         />
         <div className="card" style={{ background: 'rgba(0,0,0,0.70)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <strong>Ramírez, Jefe del nivel</strong>
+            <strong>Sebastian, Jefe del nivel</strong>
             <span
               style={{
                 fontSize: 12,
@@ -359,16 +355,16 @@ const Level: React.FC = () => {
             Ir al Boss
           </button>
           <button
-            onClick={() => nav('/')}
+            onClick={() => nav('/home/senior')}
             style={{ minWidth: 120, padding: '10px 18px' }}
           >
             Volver
           </button>
           <button
-            onClick={() => nav('/result')}
+            onClick={() => nav('/result/senior')}
             style={{ minWidth: 120, padding: '10px 18px' }}
           >
-            ver progreso
+            Ver progreso
           </button>
         </div>
       </div>
@@ -411,15 +407,15 @@ const Level: React.FC = () => {
               }}
             >
               <img
-                src={assets.characters.boss}
-                alt="Ramírez, Jefe del nivel"
+                src={assets.characters.boss_senior}
+                alt="Sebastian, Jefe del nivel"
                 style={{
                   width: 96,
                   borderRadius: 16,
                   objectFit: 'cover'
                 }}
               />
-              <h3 style={{ margin: 0 }}>Simulación fallida</h3>
+              <h3 style={{ margin: 0 }}>⚠ Estado incompleto — Los mentores del equipo Kernel no autorizaron la evaluación con Sebastian.</h3>
             </div>
 
             <p
@@ -432,11 +428,11 @@ const Level: React.FC = () => {
                 justifySelf: 'center'
               }}
             >
-              Has completado los retos con todos los mentores, pero no alcanzaste el
+              Has completado las tareas asignadas por los mentores, pero no alcanzaste el
               número mínimo de aciertos para desbloquear al jefe del nivel.
               {'\n'}
-              Ramírez cierra la simulación y te indica que debes reiniciar el entrenamiento
-              desde el inicio. Esta vez, intenta mejorar tus decisiones en los retos clave.
+              La estación de control  y el jefe Sebastian registran inconsistencias crítica solicita reiniciar el ciclo operativo.
+              Esta vez, revisa con más atención los patrones anómalos y las decisiones tomadas bajo presión.
             </p>
 
             <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
@@ -444,7 +440,7 @@ const Level: React.FC = () => {
                 onClick={handleGoHome}
                 style={{ minWidth: 180, padding: '10px 18px' }}
               >
-                Reiniciar simulación
+                Completa las nuevas tareas asignadas 
               </button>
             </div>
           </div>
@@ -454,4 +450,4 @@ const Level: React.FC = () => {
   )
 }
 
-export default Level
+export default Level_senior

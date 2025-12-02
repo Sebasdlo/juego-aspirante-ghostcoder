@@ -38,10 +38,18 @@ export const startLevel = (level: string) =>
   )
 // --------- LÓGICA DEL JUEGO ----------
 
-export const getPlayerState = () =>
-  http<{ ok: true; state: any }>(
-    `/Logica/player/state?userId=${UID()}`
-  );
+// DESPUÉS: acepta un levelKey opcional
+export const getPlayerState = (levelKey?: string) => {
+  const uid = UID()
+  let url = `/Logica/player/state?userId=${uid}`
+
+  if (levelKey) {
+    url += `&levelKey=${encodeURIComponent(levelKey)}`
+  }
+
+  // la forma genérica, porque el backend devuelve { ok, userId, openSet, lastCompletedSet, scores }
+  return http<any>(url)
+}
 
 export const resetPlayer = (levelKey?: string) =>
   http<{ ok: boolean; clearedSets: number; scope: 'level' | 'all' }>(
@@ -164,4 +172,9 @@ export const resetBossRun = (setId: string) =>
       method: 'POST',
       body: JSON.stringify({ userId: UID() })
     }
+  );
+// Resumen de TODOS los sets completados del jugador (junior, senior, master…)
+export const getSummarySets = () =>
+  http<{ ok: true; summaries: any[] }>(
+    `/Logica/sets/summarysets?userId=${UID()}`
   );

@@ -27,7 +27,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       .select('id, user_id, level_key, status, next_index, boss_unlocked')
       .eq('id', setId).maybeSingle()
     if (!gset) return res.status(404).json({ ok:false, error:{message:'SET_NOT_FOUND'} })
-    if (gset.status !== 'open') return res.status(400).json({ ok:false, error:{message:'SET_NOT_OPEN'} })
+    if (gset.status !== 'open') return res.status(400).json({ ok:false, error:{message:' SET_NOT_OPEN-Ya repondiste las preguntas, no puedes entrar al boss'} })
     if (gset.user_id !== userId) return res.status(403).json({ ok:false, error:{message:'USER_SET_MISMATCH'} })
     if (!gset.boss_unlocked) return res.status(403).json({ ok:false, error:{message:'BOSS_LOCKED'} })
 

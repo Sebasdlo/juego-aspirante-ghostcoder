@@ -32,7 +32,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(404).json({ ok:false, error:{ message:'SET_NOT_FOUND' } })
   }
   if (gset.status !== 'open') {
-    return res.status(400).json({ ok:false, error:{ message:'SET_NOT_OPEN' } })
+    return res.status(400).json({ ok:false, error:{ message:'SET_NOT_OPEN-Ya repondiste las preguntas, no puedes entrar al boss' } })
   }
   if (gset.boss_unlocked) {
     return res.json({ ok:true, setId, bossUnlocked: true, already: true })
