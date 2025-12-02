@@ -1,10 +1,7 @@
 {
-  "buildCommand": "",
-  "installCommand": "",
-  "outputDirectory": ".",
   "functions": {
     "api/**/*.{ts,js}": {
-      "runtime": "@vercel/node@5.5.0",
+      "runtime": "nodejs22.x",
       "memory": 256,
       "maxDuration": 10
     }

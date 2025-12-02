@@ -9,8 +9,11 @@
     "start": "echo \"Usa 'vercel dev' para entorno local\"",
     "lint": "echo \"(opcional) añade eslint/prettier más adelante\""
   },
+  "engines": {
+    "node": "22.x"
+  },
   "devDependencies": {
-    "@types/node": "^24.9.1",
+    "@types/node": "^22.0.0",
     "@vercel/node": "^5.5.0",
     "supabase": "^2.54.11",
     "typescript": "^5.9.3",
