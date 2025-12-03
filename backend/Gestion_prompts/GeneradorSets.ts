@@ -1,11 +1,5 @@
-// backend/api/Gestion_promts/GeneradorSets.ts
+// backend/Gestion_promts/GeneradorSets.ts 
 import { supabase } from '../db/client.js'
-
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY
-
-if (!OPENAI_API_KEY) {
-  throw new Error('OPENAI_API_KEY no está definido en las variables de entorno')
-}
 
 // MentorName ahora es genérico: cada nivel tendrá sus mentores propios
 export type MentorName = string | null
@@ -25,6 +19,7 @@ type PromptTemplateRow = {
   template_text: string
   constraints_json: any | null
 }
+
 function cleanModelContent(raw: string | null | undefined): string {
   if (!raw) return '[]'
 
@@ -56,7 +51,6 @@ function cleanModelContent(raw: string | null | undefined): string {
 
   return text
 }
-
 
 /**
  * Intenta parsear JSON de forma tolerante:
@@ -301,7 +295,6 @@ async function validateAndNormalizeItems(
   return finalItems
 }
 
-
 /**
  * Carga el prompt_template desde Supabase para un level dado.
  */
@@ -345,6 +338,12 @@ export async function generateItemsForLevel(
   model = 'gpt-4.1-mini',
   maxAttempts = 3
 ): Promise<IAItem[]> {
+  // 🔑 Validar API key DENTRO de la función (no en top-level)
+  const OPENAI_API_KEY = process.env.OPENAI_API_KEY
+  if (!OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY no está definido en las variables de entorno')
+  }
+
   // 1) Cargar el template desde la BD (solo una vez)
   const tpl = await loadPromptTemplate(levelKey)
 
