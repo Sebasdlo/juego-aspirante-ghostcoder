@@ -10,6 +10,7 @@
     "lint": "echo \"(opcional) añade eslint/prettier más adelante\""
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.86.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.9.4",
