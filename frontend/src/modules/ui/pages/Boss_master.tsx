@@ -31,8 +31,14 @@ const LEVEL_KEY = 'master'
 const Boss_master: React.FC = () => {
   const nav = useNavigate()
 
-  // 👇 usamos setId y bootstrap desde el store (SOLO UNA VEZ)
-  const { setId, bootstrap } = useGame()
+  // 👇 usamos setId, bootstrap y fallos globales del boss desde el store
+  const {
+    setId,
+    bootstrap,
+    bossFailCount,
+    incrementBossFail,
+    resetBossFail
+  } = useGame()
 
   const [question, setQuestion] = useState('')
   const [options, setOptions] = useState<string[]>([])
@@ -56,7 +62,6 @@ const Boss_master: React.FC = () => {
 
   const [showCongrats, setShowCongrats] = useState(false)
 
-  const [failCount, setFailCount] = useState(0)
   const [showFailOverlay, setShowFailOverlay] = useState(false)
   const [lastWrongIndex, setLastWrongIndex] = useState<number | null>(null)
 
@@ -155,6 +160,13 @@ const Boss_master: React.FC = () => {
 
     run()
   }, [setId])
+    // 3️⃣ Si el contador global de fallos llega a MAX_FAILS, mostramos overlay
+    useEffect(() => {
+      if (bossFailCount >= MAX_FAILS) {
+        setFinished(true)
+        setShowFailOverlay(true)
+      }
+    }, [bossFailCount])
 
   const getState = (i: number): OptionState => {
     if (!hasOptions) return 'idle'
@@ -188,20 +200,12 @@ const Boss_master: React.FC = () => {
       const anyRes = res as any
       setExplanation(anyRes.explanation ?? anyRes.message ?? null)
 
-      // 🔹 Si la respuesta es INCORRECTA: NO avanzamos, sumamos fallo
+      // 🔹 Si la respuesta es INCORRECTA: NO avanzamos, sumamos fallo global
       if (!res.correct) {
         setLastWrongIndex(currentIndex)
-
         setBossNextIndex(null)
 
-        setFailCount(prev => {
-          const next = prev + 1
-          if (next >= MAX_FAILS) {
-            setFinished(true)
-            setShowFailOverlay(true)
-          }
-          return next
-        })
+        incrementBossFail()
 
         return
       }
@@ -260,7 +264,10 @@ const Boss_master: React.FC = () => {
       await resetBossQuestion(setId, lastWrongIndex)
       await loadBossQuestion(lastWrongIndex, true)
     } catch (e: any) {
-      console.error('Error al resetear intento de la pregunta del jefe (master):', e)
+      console.error(
+        'Error al resetear intento de la pregunta del jefe (master):',
+        e
+      )
       setError(e?.message || 'No se pudo reintentar este reto del jefe')
     }
   }
@@ -273,7 +280,9 @@ const Boss_master: React.FC = () => {
 
       await resetBossRun(setId)
 
-      setFailCount(0)
+      // resetear fallos globales del boss
+      resetBossFail()
+
       setFinished(false)
       setShowFailOverlay(false)
       setShowCongrats(false)
@@ -286,7 +295,10 @@ const Boss_master: React.FC = () => {
 
       await loadBossQuestion(16, true)
     } catch (e: any) {
-      console.error('Error al resetear la evaluación del jefe (master):', e)
+      console.error(
+        'Error al resetear la evaluación del jefe (master):',
+        e
+      )
       setError(
         e?.message ||
           'No se pudo reiniciar la evaluación del jefe. Intenta de nuevo.'
@@ -298,7 +310,7 @@ const Boss_master: React.FC = () => {
 
   const handleFinish = async () => {
     if (!setId) {
-      nav('/')
+      nav('/home/master')
       return
     }
 
@@ -307,11 +319,9 @@ const Boss_master: React.FC = () => {
     } catch (e) {
       console.error('Error obteniendo resumen del set (master):', e)
     } finally {
-      // 👇 OJO: resultado específico para master
       nav('/result/master')
     }
   }
-
   return (
     <div
       className="card"
@@ -391,7 +401,7 @@ const Boss_master: React.FC = () => {
                 : 'Reto final del nivel'}
             </div>
             <div style={{ fontSize: 11, opacity: 0.8, marginTop: 4 }}>
-              Fallos: {failCount}/{MAX_FAILS}
+              Fallos: {bossFailCount}/{MAX_FAILS}
             </div>
           </div>
         </div>
@@ -497,6 +507,8 @@ const Boss_master: React.FC = () => {
             alignItems: 'end'
           }}
         >
+          {/* Siguiente reto del Boss (solo si ya respondiste CORRECTO
+              y el backend mandó nextIndex) */}
           {!finished &&
             answered &&
             !loading &&
@@ -505,20 +517,25 @@ const Boss_master: React.FC = () => {
               <button onClick={handleNextBoss}>Siguiente reto</button>
             )}
 
+          {/*
+            Si la respuesta fue incorrecta, aún no terminaste,
+            y no llegaste al máximo de fallos → SOLO mostramos "Reintentar este reto".
+          */}
           {!finished &&
-            answered &&
-            !loading &&
-            wasCorrect === false &&
-            lastWrongIndex != null &&
-            failCount < MAX_FAILS && (
-              <button onClick={handleRetryQuestion}>
-                Reintentar este reto
-              </button>
-            )}
-
-          <button onClick={() => nav('/level/master')}>
-            Volver al nivel
-          </button>
+          answered &&
+          !loading &&
+          wasCorrect === false &&
+          lastWrongIndex != null &&
+          bossFailCount < MAX_FAILS ? (
+            <button onClick={handleRetryQuestion}>
+              Reintentar este reto
+            </button>
+          ) : (
+            // En cualquier otro caso, mostramos "Volver al nivel"
+            <button onClick={() => nav(`/level/master`)} >
+              Volver al nivel
+            </button>
+          )}
         </div>
       </div>
 
@@ -586,7 +603,7 @@ const Boss_master: React.FC = () => {
               {'\n'}
               A partir de hoy eres uno de los líderes de la Corporación GhostCoder.
               De ti depende la resistencia humana en esta guerra económica frente a las IA.
-              </p>
+            </p>
 
             <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
               <button onClick={handleFinish}>

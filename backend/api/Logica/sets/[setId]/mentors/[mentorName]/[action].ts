@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { supabase } from '../../../../../db/client.js'
-import { withCors } from '../../../../ops/_cors.js'
+import { supabase } from '../../../../../../db/client.js'
+import { withCors } from '../../../../../ops/_cors.js'
 
 function normalizeName(n?: string) {
   // Permite nombres con tildes y espacios
@@ -331,34 +331,15 @@ async function  answerMentorItem(req: VercelRequest, res: VercelResponse) {
   })
 }
 
-/* ------------------ ROUTER CENTRAL [...rest] ------------------ */
 
 async function mainHandler(req: VercelRequest, res: VercelResponse) {
-  // rest = [mentorName] o [mentorName, "items"] o [mentorName, "answer"]
-  const raw = (req.query as any).rest
-  const segments = Array.isArray(raw)
-    ? raw
-    : typeof raw === 'string'
-    ? raw.split('/')
-    : []
+  const { action } = req.query as { action?: string }
 
-  const mentorName = segments[0]
-  const action = segments[1] ?? null
-
-  if (!mentorName) {
-    return res.status(400).json({ ok: false, error: { message: 'MENTOR_REQUIRED' } })
-  }
-
-  // Simular lo que hacía Vercel con [mentorName]
-  ;(req.query as any).mentorName = mentorName
-
-  if (!action || action === 'items') {
-    // GET /mentors/:mentorName/items
+  if (req.method === 'GET' && (!action || action === 'items')) {
     return getMentorItems(req, res)
   }
 
-  if (action === 'answer') {
-    // POST /mentors/:mentorName/answer
+  if (req.method === 'POST' && action === 'answer') {
     return answerMentorItem(req, res)
   }
 

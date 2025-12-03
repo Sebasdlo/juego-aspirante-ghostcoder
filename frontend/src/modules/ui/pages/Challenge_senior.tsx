@@ -431,7 +431,7 @@ const forceFinishMentor = () => {
             </p>
           )}
           <div style={{ display: 'flex', gap: 12 }}>
-            {!finishedForMentor && answered && !loading && (
+            {!finishedForMentor && !randomMode && answered && !loading && (
               <button onClick={() => loadNextQuestion(true)}>
                 Siguiente reto
               </button>
@@ -444,7 +444,7 @@ const forceFinishMentor = () => {
                 <button>Volver</button>
               </Link>
             )}
-            {/* 👉 En randomMode permitimos "Siguiente reto" aunque finishedForMentor sea true */}
+           {/* 👉 En randomMode permitimos "Siguiente reto" aunque finishedForMentor sea true */}
             {!finishedForMentor && randomMode && answered && !loading && (
               <button onClick={forceFinishMentor}>
                 Terminar evento inesperado

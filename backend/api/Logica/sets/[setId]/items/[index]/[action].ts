@@ -1,12 +1,12 @@
 // api/sets/[setId]/items/[index]/answer.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { supabase } from '../../../../../db/client.js'
-import { withCors } from '../../../../ops/_cors.js'
+import { supabase } from '../../../../../../db/client.js'
+import { withCors } from '../../../../../ops/_cors.js'
 
 const isUuid = (v:any) =>
   typeof v === 'string' &&
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v)
-  
+
 async function getItemHandler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
     return res.status(405).json({ ok:false, error:{ message:'METHOD_NOT_ALLOWED' } })
@@ -65,6 +65,8 @@ async function getItemHandler(req: VercelRequest, res: VercelResponse) {
     const mentorNode = rawMentor
       ? (Array.isArray(rawMentor) ? (rawMentor[0] ?? null) : rawMentor)
       : null
+    
+    const nextIndex = Math.min(21, itemIndex + 1)
 
     return res.json({
       ok: true,
@@ -76,7 +78,7 @@ async function getItemHandler(req: VercelRequest, res: VercelResponse) {
       question: item.question,
       options,
       status: gset.status,
-      nextIndex: gset.next_index,
+      nextIndex,
       total: 20
     })
   } catch (e:any) {
@@ -143,7 +145,7 @@ async function answerHandler(req: VercelRequest, res: VercelResponse) {
         .eq('user_id', userId).eq('level_key', gset.level_key)
     }
 
-    const nextIndex = Math.min(21, itemIndex + 1)
+    const nextIndex = isCorrect ? Math.min(21, itemIndex + 1) : itemIndex
     await supabase.from('generated_set').update({ next_index: nextIndex }).eq('id', setId)
 
     if (nextIndex === 21) {
@@ -217,39 +219,22 @@ async function resetAttemptHandler(req: VercelRequest, res: VercelResponse) {
 }
 
 
+
 async function mainHandler(req: VercelRequest, res: VercelResponse) {
-  // rest puede ser: ["16"] o ["16","answer"] o ["16","resetAttempt"]
-  const rawRest = (req.query as any).rest as string | string[] | undefined
-  const segments = Array.isArray(rawRest)
-    ? rawRest
-    : typeof rawRest === 'string'
-    ? rawRest.split('/')
-    : []
+  const { action } = req.query as { action?: string }
 
-  const indexSegment = segments[0]
-  const action = segments[1] ?? null
-
-  if (!indexSegment) {
-    return res
-      .status(400)
-      .json({ ok: false, error: { message: 'INDEX_REQUIRED' } })
-  }
-
-  // Simulamos lo que antes hacía Vercel con [index]
-  ;(req.query as any).index = indexSegment
-
-  if (!action) {
-    // GET /items/:index
+  // GET /items/:index/item
+  if (req.method === 'GET' && action === 'item') {
     return getItemHandler(req, res)
   }
 
-  if (action === 'answer') {
-    // POST /items/:index/answer
+  // POST /items/:index/answer
+  if (req.method === 'POST' && action === 'answer') {
     return answerHandler(req, res)
   }
 
-  if (action === 'resetAttempt') {
-    // POST /items/:index/resetAttempt
+  // POST /items/:index/resetAttempt
+  if (req.method === 'POST' && action === 'resetAttempt') {
     return resetAttemptHandler(req, res)
   }
 

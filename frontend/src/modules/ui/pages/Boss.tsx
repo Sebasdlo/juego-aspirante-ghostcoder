@@ -36,8 +36,14 @@ const Boss: React.FC = () => {
   const { levelKey: routeLevelKey } = useParams<RouteParams>()
   const levelKey = routeLevelKey || 'junior'
 
-  // 👇 usamos setId y bootstrap desde el store (SOLO UNA VEZ)
-  const { setId, bootstrap } = useGame()
+  // 👇 usamos setId y bootstrap desde el store
+  const {
+    setId,
+    bootstrap,
+    bossFailCount,       // 🔥 contador global
+    incrementBossFail,   // 🔥 suma 1 y persiste por setId
+    resetBossFail        // 🔥 limpia contador (y localStorage)
+  } = useGame()
 
   const [question, setQuestion] = useState('')
   const [options, setOptions] = useState<string[]>([])
@@ -61,7 +67,7 @@ const Boss: React.FC = () => {
 
   const [showCongrats, setShowCongrats] = useState(false)
 
-  const [failCount, setFailCount] = useState(0)
+  // 🔥 ahora solo manejamos si mostramos el overlay o no localmente
   const [showFailOverlay, setShowFailOverlay] = useState(false)
   const [lastWrongIndex, setLastWrongIndex] = useState<number | null>(null)
 
@@ -161,6 +167,14 @@ const Boss: React.FC = () => {
     run()
   }, [setId]) // 👈 solo depende de setId
 
+  // 3️⃣ Si el contador global de fallos llega a MAX_FAILS, mostramos overlay
+  useEffect(() => {
+    if (bossFailCount >= MAX_FAILS) {
+      setFinished(true)
+      setShowFailOverlay(true)
+    }
+  }, [bossFailCount])
+
   const getState = (i: number): OptionState => {
     if (!hasOptions) return 'idle'
 
@@ -177,6 +191,7 @@ const Boss: React.FC = () => {
     }
     return 'idle'
   }
+
   const submitAnswer = async (answer: number) => {
     if (!setId || currentIndex == null) return
 
@@ -192,23 +207,16 @@ const Boss: React.FC = () => {
       const anyRes = res as any
       setExplanation(anyRes.explanation ?? anyRes.message ?? null)
 
-      // 🔹 Si la respuesta es INCORRECTA: NO avanzamos, sumamos fallo
+      // 🔹 Si la respuesta es INCORRECTA: NO avanzamos, sumamos fallo global
       if (!res.correct) {
         setLastWrongIndex(currentIndex)
-
         setBossNextIndex(null) // no avanzamos al siguiente reto
 
-        setFailCount(prev => {
-          const next = prev + 1
-          if (next >= MAX_FAILS) {
-            // 🔥 Alcanzó el máximo de fallos: evaluación fallida
-            setFinished(true)
-            setShowFailOverlay(true)
-          }
-          return next
-        })
+        // 🔥 usamos el store → persiste por set y se refleja en todo el juego
+        incrementBossFail()
 
-        return // ⛔ NO miramos res.finished ni res.nextIndex en este caso
+        // No miramos res.finished ni res.nextIndex si es incorrecto
+        return
       }
 
       // 🔹 Si la respuesta es CORRECTA:
@@ -284,8 +292,10 @@ const Boss: React.FC = () => {
 
       await resetBossRun(setId)
 
+      // 🔥 Reseteamos contador global de fallos
+      resetBossFail()
+
       // Reseteamos estado local del boss
-      setFailCount(0)
       setFinished(false)
       setShowFailOverlay(false)
       setShowCongrats(false)
@@ -404,7 +414,7 @@ const Boss: React.FC = () => {
             </div>
             {/* 🔹 Info de fallos */}
             <div style={{ fontSize: 11, opacity: 0.8, marginTop: 4 }}>
-              Fallos: {failCount}/{MAX_FAILS}
+              Fallos: {bossFailCount}/{MAX_FAILS}
             </div>
           </div>
         </div>
@@ -488,7 +498,7 @@ const Boss: React.FC = () => {
             )}
 
             {displayOptions.map((text, index0) => {
-              const index = index0 + 1 // 1,2,3,4
+              const index = index0 + 1 // 1→A, 2→B, 3→C, 4→D
               return (
                 <OptionButton
                   key={index}
@@ -522,21 +532,25 @@ const Boss: React.FC = () => {
               <button onClick={handleNextBoss}>Siguiente reto</button>
             )}
 
-          {/* Reintentar ESTE reto cuando está mal pero aún no llegó a 3 fallos */}
+          {/*
+            Si la respuesta fue incorrecta, aún no terminaste,
+            y no llegaste al máximo de fallos → SOLO mostramos "Reintentar este reto".
+          */}
           {!finished &&
-            answered &&
-            !loading &&
-            wasCorrect === false &&
-            lastWrongIndex != null &&
-            failCount < MAX_FAILS && (
-              <button onClick={handleRetryQuestion}>
-                Reintentar este reto
-              </button>
-            )}
-
-          <button onClick={() => nav(`/level/${levelKey}`)}>
-            Volver al nivel
-          </button>
+          answered &&
+          !loading &&
+          wasCorrect === false &&
+          lastWrongIndex != null &&
+          bossFailCount < MAX_FAILS ? (
+            <button onClick={handleRetryQuestion}>
+              Reintentar este reto
+            </button>
+          ) : (
+            // En cualquier otro caso, mostramos "Volver al nivel"
+            <button onClick={() => nav(`/level/${levelKey}`)}>
+              Volver al nivel
+            </button>
+          )}
         </div>
       </div>
 
@@ -606,9 +620,9 @@ const Boss: React.FC = () => {
             </p>
 
             <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
-            <button onClick={handleFinish}>
-              Ver resultado final del nivel
-            </button>
+              <button onClick={handleFinish}>
+                Ver resultado final del nivel
+              </button>
             </div>
           </div>
         </div>

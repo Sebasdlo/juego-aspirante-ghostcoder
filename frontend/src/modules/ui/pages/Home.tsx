@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { assets } from '@scenes/assets/assets.manifest'
-import { healthz, startLevel, getLore, getLevelContext } from '@api/endpoints'
+import { healthz, startLevel, getLore, getLevelContext, getPlayerState } from '@api/endpoints'
 import { useGame } from '@state/store'
 
 const LEVEL_KEY = 'junior'
@@ -65,8 +65,11 @@ function extractTitle(source: any): string | undefined {
 
 const Home: React.FC = () => {
   const nav = useNavigate()
-  const { setId, level , bootstrap, hardReset } = useGame()
-  const hasSeniorOpen = !!setId && level === 'senior'
+  const { setId,  bootstrap, hardReset } = useGame()
+  // 👇 NUEVO estado local solo para este botón
+  const [hasSeniorOpen, setHasSeniorOpen] = useState(false)
+  const [loadingSenior, setLoadingSenior] = useState(true)
+
   const [status, setStatus] = useState('Comprobando API…')
   const [loading, setLoading] = useState(false)
 
@@ -98,6 +101,31 @@ const Home: React.FC = () => {
       cancelled = true
     }
   }, [bootstrap])
+
+useEffect(() => {
+    const run = async () => {
+      try {
+        const resp = await getPlayerState('senior')
+        if (!resp?.ok) {
+          setHasSeniorOpen(false)
+          return
+        }
+
+        const anyResp = resp as any
+        const openSet = anyResp.openSet ?? null
+        const lastCompletedSet = anyResp.lastCompletedSet ?? null
+
+        // ✅ Si hay set abierto o completado en senior, activamos el botón
+        setHasSeniorOpen(!!(openSet || lastCompletedSet))
+      } catch {
+        setHasSeniorOpen(false)
+      } finally {
+        setLoadingSenior(false)
+      }
+    }
+
+    run()
+  }, [])  
 
   // 👉 Avanzar escenas de la INTRO
   const nextIntro = () => {
@@ -288,9 +316,9 @@ return (
           {loading ? 'Eliminando…' : 'Eliminar progreso'}
         </button>
       )}
-
-      {/* 🌟 NUEVO: Continuar Senior solo si existe set en senior */}
-      {!hasSeniorOpen && !loading && (
+      
+      {/* 🌟 Continuar Senior solo si EXISTE set en senior y ya terminó de cargar */}
+      {hasSeniorOpen && !loadingSenior && (
         <button
           onClick={() => nav('/home/senior')}
           style={{ minWidth: 180, padding: '10px 18px' }}
@@ -298,6 +326,7 @@ return (
           Continuar nivel Senior
         </button>
       )}
+
     </div>
 
     {/* Overlay INTRO */}

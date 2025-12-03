@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { assets } from '@scenes/assets/assets.manifest'
-import { healthz, startLevel, getLevelContext } from '@api/endpoints'
+import { healthz, startLevel, getLevelContext, getPlayerState } from '@api/endpoints'
 import { useGame } from '@state/store'
 
 const LEVEL_KEY = 'senior'
@@ -66,8 +66,12 @@ function extractTitle(source: any): string | undefined {
 const Home_senior: React.FC = () => {
   const nav = useNavigate()
   const { setId, level, bootstrap, hardReset } = useGame()
-  const hasJuniorOpen = !!setId && level === 'junior'
-  const hasMasterOpen = !!setId && level === 'master'
+  const [hasJuniorOpen, setHasJuniorOpen] = useState(false)
+  const [hasMasterOpen, setHasMasterOpen] = useState(false)
+
+  const [loadingJunior, setLoadingJunior] = useState(true)
+  const [loadingMaster, setLoadingMaster] = useState(true)
+
   const [status, setStatus] = useState('Comprobando API…')
   const [loading, setLoading] = useState(false)
 
@@ -99,6 +103,56 @@ const Home_senior: React.FC = () => {
       cancelled = true
     }
   }, [bootstrap])
+
+  // 🔵 Cargar estado en Junior
+  useEffect(() => {
+    const run = async () => {
+      try {
+        const resp = await getPlayerState('junior')
+
+        if (!resp?.ok) {
+          setHasJuniorOpen(false)
+        } else {
+          const anyResp = resp as any
+          const openSet = anyResp.openSet ?? null
+          const lastCompletedSet = anyResp.lastCompletedSet ?? null
+
+          setHasJuniorOpen(!!(openSet || lastCompletedSet))
+        }
+      } catch {
+        setHasJuniorOpen(false)
+      } finally {
+        setLoadingJunior(false)
+      }
+    }
+
+    run()
+  }, [])
+
+  // 🔴 Cargar estado en Master
+  useEffect(() => {
+    const run = async () => {
+      try {
+        const resp = await getPlayerState('master')
+
+        if (!resp?.ok) {
+          setHasMasterOpen(false)
+        } else {
+          const anyResp = resp as any
+          const openSet = anyResp.openSet ?? null
+          const lastCompletedSet = anyResp.lastCompletedSet ?? null
+
+          setHasMasterOpen(!!(openSet || lastCompletedSet))
+        }
+      } catch {
+        setHasMasterOpen(false)
+      } finally {
+        setLoadingMaster(false)
+      }
+    }
+
+    run()
+  }, [])
 
   // 👉 Avanzar escenas de la INTRO
   const nextIntro = () => {
@@ -263,15 +317,15 @@ const Home_senior: React.FC = () => {
           flexWrap: 'wrap'
         }}
       >
-      {/* 🌟 NUEVO: Continuar Senior solo si existe set en senior */}
-      {!hasJuniorOpen && !loading && (
-        <button
-          onClick={() => nav('/')}
-          style={{ minWidth: 180, padding: '10px 18px' }}
-        >
-        Devolverte al nivel Junior
-        </button>
-      )}
+          {/* Continuar JUNIOR solo si existe set en Junior */}
+          {hasJuniorOpen && !loadingJunior && (
+            <button
+              onClick={() => nav('/home/junior')}
+              style={{ minWidth: 180, padding: '10px 18px' }}
+            >
+              Devolverte al nivel Junior
+            </button>
+          )}
         {/* SOLO si NO hay set y NO estás eliminando */}
         {!setId && !loading && (
           <button
@@ -301,15 +355,15 @@ const Home_senior: React.FC = () => {
             {loading ? 'Eliminando…' : 'Eliminar progreso Senior'}
           </button>
         )}
-      {/* 🌟 NUEVO: Continuar Senior solo si existe set en senior */}
-      {!hasMasterOpen && !loading && (
-        <button
-          onClick={() => nav('/home/master')}
-          style={{ minWidth: 180, padding: '10px 18px' }}
-        >
-        Continuar al nivel master
-        </button>
-      )}
+        {/* Continuar MASTER solo si existe set en Master */}
+        {hasMasterOpen && !loadingMaster && (
+          <button
+            onClick={() => nav('/home/master')}
+            style={{ minWidth: 180, padding: '10px 18px' }}
+          >
+            Continuar nivel Master
+          </button>
+        )}
       </div>
       {/* Overlay INTRO */}
       {showIntro && (

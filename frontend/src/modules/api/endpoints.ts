@@ -139,7 +139,7 @@ export const getBossItem = (setId: string, index: number) =>
     status: string;
     nextIndex: number;
     total: number;
-  }>(`/Logica/sets/${setId}/items/${index}`);
+  }>(`/Logica/sets/${setId}/items/${index}/item`);
 
 // Boss: responder reto puntual
 export const answerBossItem = (setId: string, index: number, answer: number) =>

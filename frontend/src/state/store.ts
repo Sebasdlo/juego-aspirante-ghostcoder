@@ -21,6 +21,12 @@ type StoreState = {
   // mentores cuyo set de 3 retos ya terminó
   completedMentors: string[]
 
+    // 🔥 Fallos del Boss (global, por set)
+  bossFailCount: number
+  setBossFailCount: (value: number) => void
+  incrementBossFail: () => void
+  resetBossFail: () => void
+
   // inicializa desde el backend (player_state + generated_set abierto o último completado)
   // ahora puede recibir levelKey opcional: 'junior' | 'senior' | 'master'
   bootstrap: (levelKey?: string) => Promise<void>
@@ -49,8 +55,38 @@ export const useGame = create<StoreState>((set, get) => ({
 
   completedMentors: [],
 
-  // Cargar estado inicial del jugador desde /Logica/player/state
-  bootstrap: async (levelKey?: string) => {
+    // 🔥 Estado inicial de fallos del Boss
+  bossFailCount: 0,
+
+  setBossFailCount: (value: number) =>
+    set((state) => {
+      const { setId } = state
+      if (typeof window !== 'undefined' && setId) {
+        localStorage.setItem(`gc_bossFail_${setId}`, String(value))
+      }
+      return { bossFailCount: value }
+    }),
+
+  incrementBossFail: () =>
+    set((state) => {
+      const next = state.bossFailCount + 1
+      const { setId } = state
+      if (typeof window !== 'undefined' && setId) {
+        localStorage.setItem(`gc_bossFail_${setId}`, String(next))
+      }
+      return { bossFailCount: next }
+    }),
+
+  resetBossFail: () =>
+    set((state) => {
+      const { setId } = state
+      if (typeof window !== 'undefined' && setId) {
+        localStorage.removeItem(`gc_bossFail_${setId}`)
+      }
+      return { bossFailCount: 0 }
+    }),
+
+      bootstrap: async (levelKey?: string) => {
     try {
       set({ loading: true, error: null })
 
@@ -81,7 +117,9 @@ export const useGame = create<StoreState>((set, get) => ({
       const nextIndex: number = baseSet?.next_index ?? 1
 
       // Estado anterior (por si no hay set asociado)
-      const prevCompleted = get().completedMentors
+      const prevState = get()
+      const prevCompleted = prevState.completedMentors
+      const prevBossFail = prevState.bossFailCount
 
       // 🧠 Nueva lógica para completedMentors (igual que antes, pero usando setId)
       let completedMentors: string[] = []
@@ -109,11 +147,29 @@ export const useGame = create<StoreState>((set, get) => ({
         completedMentors = prevCompleted
       }
 
+      // 🔥 Boss fails: por defecto, conservamos lo que había en memoria
+      let bossFailCount = prevBossFail
+
+      if (setId && typeof window !== 'undefined') {
+        try {
+          const rawFail = localStorage.getItem(`gc_bossFail_${setId}`)
+          if (rawFail != null) {
+            const n = Number(rawFail)
+            if (!Number.isNaN(n) && n >= 0) {
+              bossFailCount = n
+            }
+          }
+        } catch (e) {
+          console.warn('No se pudo leer bossFailCount desde localStorage', e)
+        }
+      }
+
       set({
         setId,
         level: derivedLevelKey,
         nextIndex,
         completedMentors,
+        bossFailCount,   // 👈 aquí inyectamos los fallos del Boss del set actual
         loading: false,
       })
     } catch (err: any) {
@@ -201,6 +257,7 @@ export const useGame = create<StoreState>((set, get) => ({
 
     if (typeof window !== 'undefined' && setId) {
       localStorage.removeItem(`gc_completedMentors_${setId}`)
+      localStorage.removeItem(`gc_bossFail_${setId}`) 
     }
 
     await resetPlayer(levelKey)

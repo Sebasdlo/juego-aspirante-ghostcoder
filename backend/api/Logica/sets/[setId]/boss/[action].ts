@@ -109,7 +109,8 @@ async function handlerResetAttempts(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ ok: false, error: { message: 'USER_ID_REQUIRED' } })
     }
 
-    const { error } = await supabase
+    // (1) Borrar TODOS los intentos del boss (16–20) para ese usuario + set
+    const { error: delErr } = await supabase
       .from('attempt')
       .delete()
       .gte('item_index', 16)
@@ -119,9 +120,24 @@ async function handlerResetAttempts(req: VercelRequest, res: VercelResponse) {
         user_id: userId
       })
 
-    if (error) throw error
+    if (delErr) throw delErr
 
-    return res.json({ ok: true })
+    // (2) Resetear el puntero del set para el boss
+    //    Si tu boss SIEMPRE empieza en 16, dejamos next_index=16 y status='open'
+    const { error: updErr } = await supabase
+      .from('generated_set')
+      .update({
+        next_index: 16,   // 👈 aquí decides el índice de arranque del boss
+        status: 'open'    // por si acaso lo quieres forzar a open
+      })
+      .eq('id', setId)
+
+    if (updErr) throw updErr
+
+    return res.json({
+      ok: true,
+      resetTo: 16
+    })
   } catch (e: any) {
     console.error('resetBossRun error:', e)
     return res.status(500).json({

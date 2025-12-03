@@ -68,7 +68,7 @@ const Challenger: React.FC = () => {
   const { levelKey: routeLevelKey, mentorKey } = useParams<RouteParams>()
   const levelKey = routeLevelKey || 'junior'
 
-  const { setId, markMentorCompleted } = useGame()
+  const { setId, markMentorCompleted , bootstrap} = useGame()
 
   const allMentors = useMemo(() => mentorsMap(assets.characters), [])
   const mentor = mentorKey ? allMentors[mentorKey] : undefined
@@ -108,16 +108,20 @@ const Challenger: React.FC = () => {
     ? 'No quedan más retos para este mentor. Vuelve al nivel y elige otro mentor o ve al Boss.'
     : (question || 'Cargando reto…')
 
-  // Redirecciones básicas
-  useEffect(() => {
-    if (!setId) {
-      nav('/')
-      return
-    }
-    if (!mentor) {
-      nav(`/level/${levelKey}`)
-    }
-  }, [setId, mentor, nav, levelKey])
+// 🔄 Rehidratar estado al entrar / recargar
+// ============================
+useEffect(() => {
+  // 1) Si no hay mentor válido en la URL, volver al selector de nivel
+  if (!mentor) {
+    nav(`/level/${levelKey}`)
+    return
+  }
+
+  // 2) Si no hay setId (por ejemplo al recargar), pedirlo al backend
+  if (!setId) {
+    bootstrap()
+  }
+}, [setId, mentor, nav, levelKey, bootstrap])
 
   // función para cargar el siguiente reto de este mentor
   const loadNextQuestion = async (fromButton: boolean) => {
@@ -434,7 +438,7 @@ const forceFinishMentor = () => {
             </p>
           )}
           <div style={{ display: 'flex', gap: 12 }}>
-            {!finishedForMentor && answered && !loading && (
+            {!finishedForMentor && !randomMode && answered && !loading && (
               <button onClick={() => loadNextQuestion(true)}>
                 Siguiente reto
               </button>
@@ -447,7 +451,8 @@ const forceFinishMentor = () => {
                 <button>Volver</button>
               </Link>
             )}
-              {!finishedForMentor && randomMode && answered && !loading && (
+           {/* 👉 En randomMode permitimos "Siguiente reto" aunque finishedForMentor sea true */}
+            {!finishedForMentor && randomMode && answered && !loading && (
               <button onClick={forceFinishMentor}>
                 Terminar evento inesperado
               </button>
