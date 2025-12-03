@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 
 import { supabase } from '../../../../db/client.js'
 import { withCors } from '../../../ops/_cors.js'
-import { generateItemsForLevel } from '../../../Gestion_prompts/GeneradorSets.js'
+import { generateItemsForLevel } from '../../../../Gestion_prompts/GeneradorSets.js'
 
 async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {

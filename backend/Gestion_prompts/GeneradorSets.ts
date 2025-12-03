@@ -1,5 +1,5 @@
 // backend/api/Gestion_promts/GeneradorSets.ts
-import { supabase } from '../../db/client.js'
+import { supabase } from '../db/client.js'
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 
