@@ -9,7 +9,7 @@ import { createClient } from '@supabase/supabase-js';
 //  1) CLIENTE HTTP (Backend API)
 // ===============================
 const API_BASE_URL =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) ??
+  (import.meta.env.VITE_API_URL as string | undefined) ??
   'http://localhost:3000/api';
 
 type HttpOptions = {
